@@ -18,13 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, MessageSquare, Bell } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell } from "lucide-react";
 import { crewMembers, stores, attendanceLogs as initialLogs, broadcastMessages } from "@/lib/data";
 import type { CrewMember, AttendanceLog } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { formatDistanceToNow } from 'date-fns';
+import Autoplay from "embla-carousel-autoplay";
+
 
 export default function CrewClock() {
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
@@ -38,6 +40,10 @@ export default function CrewClock() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const autoplay = useRef(
+    Autoplay({ delay: 3000, stopOnInteraction: true })
+  );
 
   const { toast } = useToast();
 
@@ -226,7 +232,7 @@ export default function CrewClock() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <Card className="bg-secondary/50">
+        <Card className="bg-primary/10 border-primary/20">
             <CardHeader className="p-4">
                 <CardTitle className="text-lg flex items-center">
                     <Bell className="mr-2 h-5 w-5 text-primary"/>
@@ -235,8 +241,11 @@ export default function CrewClock() {
             </CardHeader>
             <CardContent className="p-4 pt-0">
                 <Carousel
-                    opts={{ align: "start" }}
+                    plugins={[autoplay.current]}
+                    opts={{ align: "start", loop: true }}
                     className="w-full"
+                    onMouseEnter={autoplay.current.stop}
+                    onMouseLeave={autoplay.current.reset}
                 >
                     <CarouselContent>
                         {broadcastMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).map((message) => (
