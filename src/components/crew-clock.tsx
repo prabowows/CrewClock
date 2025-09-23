@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import Image from "next/image";
 import {
   Card,
   CardContent,
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera } from "lucide-react";
 import { crewMembers, stores, attendanceLogs as initialLogs } from "@/lib/data";
 import type { CrewMember, AttendanceLog } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
@@ -31,6 +32,11 @@ export default function CrewClock() {
   const [isLocating, setIsLocating] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
   const [attendance, setAttendance] = useState<AttendanceLog[]>(initialLogs);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const { toast } = useToast();
 
   const selectedCrewMember = useMemo(
@@ -49,14 +55,41 @@ export default function CrewClock() {
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
   }, [attendance, selectedCrewId]);
 
-  const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out');
-  const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in';
+  const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage;
+  const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage;
+
+  useEffect(() => {
+    async function getCameraPermission() {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+          setHasCameraPermission(true);
+        } catch (error) {
+          console.error("Error accessing camera:", error);
+          setHasCameraPermission(false);
+          toast({
+            variant: "destructive",
+            title: "Camera Access Denied",
+            description: "Please enable camera permissions in your browser settings.",
+          });
+        }
+      } else {
+        setHasCameraPermission(false);
+      }
+    }
+    getCameraPermission();
+  }, [toast]);
+
 
   useEffect(() => {
     if (!selectedCrewId) {
       setLocation(null);
       setDistance(null);
       setLocationError(null);
+      setCapturedImage(null);
       return;
     }
 
@@ -99,6 +132,7 @@ export default function CrewClock() {
       storeName: assignedStore.name,
       timestamp: new Date(),
       type,
+      photoURL: capturedImage || undefined,
     };
     setAttendance((prev) => [...prev, newLog]);
     toast({
@@ -106,7 +140,24 @@ export default function CrewClock() {
       description: `${selectedCrewMember.name} at ${assignedStore.name}`,
       variant: "default",
     });
+    setCapturedImage(null); // Reset image after clocking action
   };
+
+  const handleCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+        const dataUrl = canvas.toDataURL('image/png');
+        setCapturedImage(dataUrl);
+      }
+    }
+  };
+
 
   const getStatus = () => {
     if (!selectedCrewId) return <AlertDescription>Please select your name to start.</AlertDescription>;
@@ -126,7 +177,7 @@ export default function CrewClock() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <Select onValueChange={setSelectedCrewId} value={selectedCrewId || ""}>
+        <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null);}} value={selectedCrewId || ""}>
           <SelectTrigger className="w-full text-lg h-12">
             <SelectValue placeholder="Select your name..." />
           </SelectTrigger>
@@ -144,6 +195,34 @@ export default function CrewClock() {
           <AlertTitle>Location Status</AlertTitle>
           {getStatus()}
         </Alert>
+
+        {selectedCrewId && (
+          <div className="space-y-4 text-center">
+            {capturedImage ? (
+              <div className="relative">
+                <Image src={capturedImage} alt="Selfie" width={400} height={300} className="rounded-lg mx-auto" />
+                <Button onClick={() => setCapturedImage(null)} variant="outline" size="sm" className="mt-2">Retake Photo</Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay playsInline muted />
+                {!hasCameraPermission && hasCameraPermission !== null && (
+                   <Alert variant="destructive">
+                     <AlertTitle>Camera Access Required</AlertTitle>
+                     <AlertDescription>
+                       Please allow camera access to use this feature.
+                     </AlertDescription>
+                   </Alert>
+                )}
+                 <Button onClick={handleCapture} disabled={!hasCameraPermission} size="lg">
+                   <Camera className="mr-2" />
+                   Take Selfie
+                 </Button>
+              </div>
+            )}
+             <canvas ref={canvasRef} className="hidden" />
+          </div>
+        )}
 
       </CardContent>
       <CardFooter className="flex justify-between gap-4">

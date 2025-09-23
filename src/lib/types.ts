@@ -20,4 +20,5 @@ export interface AttendanceLog {
   storeName: string;
   timestamp: Date;
   type: 'in' | 'out';
+  photoURL?: string;
 }

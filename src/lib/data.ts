@@ -20,6 +20,7 @@ export const attendanceLogs: AttendanceLog[] = [
     storeName: 'Downtown Central',
     timestamp: new Date(new Date().setDate(new Date().getDate() - 1)),
     type: 'in',
+    photoURL: 'https://i.pravatar.cc/150?u=a042581f4e29026024d',
   },
   {
     id: 'log-2',
@@ -29,6 +30,7 @@ export const attendanceLogs: AttendanceLog[] = [
     storeName: 'Downtown Central',
     timestamp: new Date(new Date().setHours(new Date().getHours() - 1)),
     type: 'out',
+    photoURL: 'https://i.pravatar.cc/150?u=a042581f4e29026024d',
   },
   {
     id: 'log-3',
@@ -38,5 +40,6 @@ export const attendanceLogs: AttendanceLog[] = [
     storeName: 'Beachside Outlet',
     timestamp: new Date(new Date().setHours(new Date().getHours() - 4)),
     type: 'in',
+    photoURL: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
   },
 ];
