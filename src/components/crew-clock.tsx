@@ -36,7 +36,7 @@ export default function CrewClock() {
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [isLocating, setIsLocating] = useState(false);
+  const [isLocating, setIsLocating] = useState(true);
   const [distance, setDistance] = useState<number | null>(null);
   const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -59,6 +59,26 @@ export default function CrewClock() {
       setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
     });
 
+    // Get location once on mount
+    setLocationError(null);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setLocation({ lat: latitude, lon: longitude });
+          setIsLocating(false);
+        },
+        (error) => {
+          setLocationError("Position update is unavailable.");
+          setIsLocating(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      setLocationError("Geolocation is not supported by this browser.");
+      setIsLocating(false);
+    }
+
     return () => {
       unsubCrew();
       unsubStores();
@@ -75,9 +95,25 @@ export default function CrewClock() {
     [selectedCrewMember, stores]
   );
 
+  // Effect to calculate distance when location or store changes
+  useEffect(() => {
+    if (location && assignedStore) {
+      const dist = calculateDistance(
+        location.lat,
+        location.lon,
+        assignedStore.latitude,
+        assignedStore.longitude
+      );
+      setDistance(dist);
+    } else {
+      setDistance(null);
+    }
+  }, [location, assignedStore]);
+
   useEffect(() => {
     if (!selectedCrewId) {
       setLastAction(null);
+      setCapturedImage(null);
       return;
     }
   
@@ -108,49 +144,6 @@ export default function CrewClock() {
 
   const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage;
   const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage;
-
-  // Effect for location
-  useEffect(() => {
-    if (!selectedCrewId) {
-      setLocation(null);
-      setDistance(null);
-      setLocationError(null);
-      setCapturedImage(null);
-      return;
-    }
-
-    setIsLocating(true);
-    setLocationError(null);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const currentLocation = { lat: latitude, lon: longitude };
-          setLocation(currentLocation);
-
-          if (assignedStore) {
-            const dist = calculateDistance(
-              currentLocation.lat,
-              currentLocation.lon,
-              assignedStore.latitude,
-              assignedStore.longitude
-            );
-            setDistance(dist);
-          }
-          setIsLocating(false);
-        },
-        (error) => {
-          setLocationError("Position update is unavailable.");
-          setIsLocating(false);
-          setDistance(null);
-        },
-        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-      );
-    } else {
-      setLocationError("Geolocation is not supported by this browser.");
-      setIsLocating(false);
-    }
-  }, [selectedCrewId, assignedStore]);
 
   // Effect for camera
   useEffect(() => {
@@ -263,9 +256,9 @@ export default function CrewClock() {
 
 
   const getStatus = () => {
-    if (!selectedCrewId) return <AlertDescription>Silakan pilih nama Anda untuk memulai.</AlertDescription>;
     if (isLocating) return <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Mendapatkan lokasi Anda...</AlertDescription>;
     if (locationError) return <AlertDescription className="flex items-center text-destructive"><WifiOff className="mr-2 h-4 w-4" />Tidak bisa mendapatkan lokasi: Gagal memperbarui posisi.</AlertDescription>;
+    if (!selectedCrewId) return <AlertDescription>Silakan pilih nama Anda untuk memulai.</AlertDescription>;
     if (distance === null) return <AlertDescription>Memverifikasi jarak dari toko...</AlertDescription>;
     if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km dari toko untuk clock in/out.</AlertDescription>;
     return <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance.toFixed(2)} km). Siap untuk clock in/out.</AlertDescription>;
