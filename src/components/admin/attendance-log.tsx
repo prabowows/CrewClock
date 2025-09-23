@@ -83,6 +83,31 @@ export default function AttendanceLog() {
     setDate(selectedDate);
   }
 
+  const getDateDisplay = () => {
+    if (!date) return <span>Pick a date</span>;
+
+    if (filter === 'day') {
+      return format(date, "PPP");
+    }
+
+    if (filter === 'week') {
+      const start = startOfWeek(date);
+      const end = endOfWeek(date);
+      if (format(start, 'y') !== format(end, 'y')) {
+        return `${format(start, "MMM d, yyyy")} - ${format(end, "MMM d, yyyy")}`;
+      }
+      if (format(start, 'M') !== format(end, 'M')) {
+         return `${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
+      }
+      return `${format(start, "MMM d")} - ${format(end, "d, yyyy")}`;
+    }
+
+    if (filter === 'month') {
+      return format(date, "MMMM yyyy");
+    }
+  }
+
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -96,12 +121,12 @@ export default function AttendanceLog() {
             <Button
               variant={"outline"}
               className={cn(
-                "w-[280px] justify-start text-left font-normal",
+                "w-auto min-w-[280px] justify-start text-left font-normal",
                 !date && "text-muted-foreground"
               )}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {date ? format(date, "PPP") : <span>Pick a date</span>}
+              {getDateDisplay()}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0">
