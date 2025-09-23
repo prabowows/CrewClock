@@ -22,7 +22,7 @@ import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'fireba
 import type { AttendanceLog } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isValid } from "date-fns";
 import { DateRange } from 'react-day-picker';
 
 type FilterType = 'day' | 'week' | 'month';
@@ -32,38 +32,19 @@ export default function AttendanceLog() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [filter, setFilter] = useState<FilterType>('day');
 
-  const selectedRange: DateRange | undefined = date 
-    ? { 
-        from: filter === 'week' ? startOfWeek(date) : (filter === 'month' ? startOfMonth(date) : date),
-        to: filter === 'week' ? endOfWeek(date) : (filter === 'month' ? endOfMonth(date) : date)
+  const selectedRange: DateRange | undefined = date && isValid(date)
+    ? {
+        from: filter === 'week' ? startOfWeek(date) : (filter === 'month' ? startOfMonth(date) : startOfDay(date)),
+        to: filter === 'week' ? endOfWeek(date) : (filter === 'month' ? endOfMonth(date) : endOfDay(date))
       }
     : undefined;
 
 
   useEffect(() => {
-    if (!date) return;
-
-    let startDate: Date;
-    let endDate: Date;
-
-    switch (filter) {
-      case 'week':
-        startDate = startOfWeek(date);
-        endDate = endOfWeek(date);
-        break;
-      case 'month':
-        startDate = startOfMonth(date);
-        endDate = endOfMonth(date);
-        break;
-      case 'day':
-      default:
-        startDate = startOfDay(date);
-        endDate = endOfDay(date);
-        break;
-    }
+    if (!selectedRange?.from || !selectedRange?.to) return;
     
-    const startTimestamp = Timestamp.fromDate(startDate);
-    const endTimestamp = Timestamp.fromDate(endDate);
+    const startTimestamp = Timestamp.fromDate(selectedRange.from);
+    const endTimestamp = Timestamp.fromDate(selectedRange.to);
 
     const q = query(
       collection(db, 'attendance'), 
@@ -86,23 +67,14 @@ export default function AttendanceLog() {
     });
 
     return () => unsubscribe();
-  }, [date, filter]);
+  }, [selectedRange]);
   
-  const handleDateSelect = (selected: Date | DateRange | undefined) => {
-    if (selected) {
-      if (selected instanceof Date) {
-        setDate(selected);
-      } else if (selected.from) {
-        // For range, just use the start date to drive the state
-        setDate(selected.from);
-      }
-    } else {
-      setDate(undefined);
-    }
+  const handleDateSelect = (selected: Date | undefined) => {
+    setDate(selected);
   }
 
   const getDateDisplay = () => {
-    if (!date) return <span>Pick a date</span>;
+    if (!date || !isValid(date)) return <span>Pick a date</span>;
 
     if (filter === 'day') {
       return format(date, "PPP");
@@ -149,10 +121,12 @@ export default function AttendanceLog() {
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0">
             <Calendar
-              mode={filter === 'day' ? 'single' : 'range'}
-              selected={filter === 'day' ? date : selectedRange}
-              onSelect={handleDateSelect as any}
+              mode="single"
+              selected={date}
+              onSelect={handleDateSelect}
               initialFocus
+              modifiers={{ range: selectedRange || {} }}
+              modifiersClassNames={{ range: "rdp-day_range" }}
             />
           </PopoverContent>
         </Popover>

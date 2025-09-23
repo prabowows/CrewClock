@@ -56,4 +56,13 @@
   body {
     @apply bg-background text-foreground;
   }
+  .rdp-day_range {
+    @apply bg-accent;
+  }
+  .rdp-day_range.rdp-day_outside {
+    @apply bg-accent/50;
+  }
+  .rdp-day_range_start, .rdp-day_range_end {
+    @apply bg-primary text-primary-foreground;
+  }
 }
