@@ -200,6 +200,9 @@ export default function CrewClock() {
     setIsProcessing(true);
 
     try {
+      // The capturedImage is already a base64 data URL
+      const photoURL = capturedImage;
+
       await addDoc(collection(db, 'attendance'), {
         crewMemberId: selectedCrewMember.id,
         crewMemberName: selectedCrewMember.name,
@@ -207,7 +210,7 @@ export default function CrewClock() {
         storeName: assignedStore.name,
         timestamp: new Date(),
         type,
-        photoURL: capturedImage, // Save the data URL directly
+        photoURL: photoURL,
       });
 
       toast({
@@ -223,6 +226,7 @@ export default function CrewClock() {
       setIsProcessing(false);
     }
   };
+
 
   const handleTakePhoto = () => {
     if (videoRef.current && canvasRef.current) {
