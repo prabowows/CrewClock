@@ -27,7 +27,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, orderBy, limit, onSnapshot, getDocs } from "firebase/firestore";
+import { collection, addDoc, query, where, orderBy, limit, onSnapshot, getDocs, Timestamp } from "firebase/firestore";
 
 
 export default function CrewClock() {
@@ -91,7 +91,12 @@ export default function CrewClock() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         const doc = snapshot.docs[0];
-        setLastAction({ id: doc.id, ...doc.data() } as AttendanceLog);
+        const data = doc.data();
+        setLastAction({ 
+          id: doc.id, 
+          ...data,
+          timestamp: (data.timestamp as Timestamp).toDate()
+        } as AttendanceLog);
       } else {
         setLastAction(null);
       }
@@ -215,8 +220,8 @@ export default function CrewClock() {
         variant: "default",
       });
       setCapturedImage(null);
-      // Reset selection to force camera re-initialization
-      setSelectedCrewId(null);
+      // Don't reset selection, allow user to see the button state change
+      // setSelectedCrewId(null); 
     } catch (e) {
       console.error("Error adding document: ", e);
       toast({ variant: "destructive", title: "Error", description: "Could not record attendance." });
@@ -250,6 +255,7 @@ export default function CrewClock() {
   const handleRetakePhoto = () => {
     setCapturedImage(null);
     // The camera permission useEffect will re-run and start the stream again
+    // A bit of a hack to re-trigger the camera useEffect
     const currentId = selectedCrewId;
     setSelectedCrewId(null);
     setTimeout(() => setSelectedCrewId(currentId), 0);
