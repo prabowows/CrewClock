@@ -9,7 +9,6 @@ export interface CrewMember {
   id: string;
   name: string;
   storeId: string;
-  address: string;
 }
 
 export interface AttendanceLog {

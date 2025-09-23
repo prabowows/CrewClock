@@ -1,32 +1,28 @@
 "use client";
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
 import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 import type { CrewMember, Store } from '@/lib/types';
-import { validateAddressAction } from '@/lib/actions';
-import { PlusCircle, Sparkles, Loader } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 
 const crewSchema = z.object({
   name: z.string().min(2, "Crew member name must be at least 2 characters."),
   storeId: z.string().min(1, "Please select a store."),
-  address: z.string().min(10, "Address must be at least 10 characters."),
 });
 
 export default function CrewManagement() {
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
-  const [addressValidation, setAddressValidation] = useState<{ isValid: boolean; message: string } | null>(null);
-  const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -47,35 +43,14 @@ export default function CrewManagement() {
     defaultValues: {
       name: "",
       storeId: "",
-      address: "",
     },
   });
-
-  const handleValidateAddress = async () => {
-    const address = form.getValues("address");
-    if (!address) {
-      form.setError("address", { type: "manual", message: "Address cannot be empty." });
-      return;
-    }
-
-    setAddressValidation(null);
-    startTransition(async () => {
-      const result = await validateAddressAction({ address });
-      if (result.isValid) {
-        setAddressValidation({ isValid: true, message: "Address is valid!" });
-        form.setValue("address", result.standardizedAddress);
-      } else {
-        setAddressValidation({ isValid: false, message: "Address could not be validated." });
-      }
-    });
-  };
 
   async function onSubmit(values: z.infer<typeof crewSchema>) {
     try {
       await addDoc(collection(db, 'crew'), values);
       toast({ title: "Crew Member Added", description: `${values.name} has been successfully added.` });
       form.reset();
-      setAddressValidation(null);
     } catch (e) {
       console.error("Error adding document: ", e);
       toast({ variant: "destructive", title: "Error", description: "Could not add crew member." });
@@ -119,30 +94,6 @@ export default function CrewManagement() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Home Address</FormLabel>
-                  <div className="flex gap-2">
-                    <FormControl>
-                      <Input placeholder="e.g., 123 Main St, Los Angeles, CA" {...field} />
-                    </FormControl>
-                    <Button type="button" variant="outline" onClick={handleValidateAddress} disabled={isPending}>
-                      {isPending ? <Loader className="animate-spin" /> : <Sparkles />}
-                      <span className="ml-2 hidden md:inline">Validate</span>
-                    </Button>
-                  </div>
-                  {addressValidation && (
-                    <FormDescription className={addressValidation.isValid ? 'text-green-600' : 'text-destructive'}>
-                      {addressValidation.message}
-                    </FormDescription>
-                  )}
                   <FormMessage />
                 </FormItem>
               )}
