@@ -9,10 +9,10 @@ export default function Header() {
         <Link href="/" className="text-2xl font-bold text-primary">
           CrewClock
         </Link>
-        <Button asChild variant="ghost" size="icon">
+        <Button asChild variant="outline">
           <Link href="/admin">
-            <UserCog className="h-6 w-6 text-primary" />
-            <span className="sr-only">Admin Dashboard</span>
+            <UserCog className="h-5 w-5" />
+            Admin
           </Link>
         </Button>
       </nav>
