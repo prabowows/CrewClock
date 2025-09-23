@@ -22,7 +22,7 @@ import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'fireba
 import type { AttendanceLog } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 
 export default function AttendanceLog() {
@@ -31,13 +31,19 @@ export default function AttendanceLog() {
     from: new Date(),
     to: new Date(),
   });
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>(date);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+
 
   useEffect(() => {
-    if (!date?.from || !date?.to) return;
+    if (!date?.from) return;
     
-    // Adjust 'to' date to include the entire day
-    const startOfDayFrom = new Date(date.from.setHours(0, 0, 0, 0));
-    const endOfDayTo = new Date(date.to.setHours(23, 59, 59, 999));
+    // Adjust 'to' date to include the entire day, or use 'from' if 'to' is not set
+    const fromDate = date.from;
+    const toDate = date.to || date.from;
+
+    const startOfDayFrom = new Date(fromDate.setHours(0, 0, 0, 0));
+    const endOfDayTo = new Date(toDate.setHours(23, 59, 59, 999));
 
     const startTimestamp = Timestamp.fromDate(startOfDayFrom);
     const endTimestamp = Timestamp.fromDate(endOfDayTo);
@@ -65,10 +71,20 @@ export default function AttendanceLog() {
     return () => unsubscribe();
   }, [date]);
 
+  const handleApplyDateRange = () => {
+    setDate(selectedDateRange);
+    setIsPopoverOpen(false);
+  };
+  
+  const handleCancel = () => {
+    setSelectedDateRange(date); // Revert to the last applied date range
+    setIsPopoverOpen(false);
+  }
+
   return (
     <div>
       <div className="flex items-center gap-4 mb-4">
-        <Popover>
+        <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
           <PopoverTrigger asChild>
             <Button
               id="date"
@@ -97,11 +113,15 @@ export default function AttendanceLog() {
             <Calendar
               initialFocus
               mode="range"
-              defaultMonth={date?.from}
-              selected={date}
-              onSelect={setDate}
+              defaultMonth={selectedDateRange?.from}
+              selected={selectedDateRange}
+              onSelect={setSelectedDateRange}
               numberOfMonths={2}
             />
+            <div className="flex justify-end gap-2 p-4 border-t">
+                <Button variant="outline" onClick={handleCancel}>Batal</Button>
+                <Button onClick={handleApplyDateRange}>Oke</Button>
+            </div>
           </PopoverContent>
         </Popover>
       </div>
