@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,42 +15,26 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { UserCog } from "lucide-react";
-// We don't use db for now, but this shows how you would import it
-// import { db } from "@/lib/firebase"; 
-// import { doc, getDoc } from "firebase/firestore";
+import { UserCog, LogOut } from "lucide-react";
 
 export default function Header() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [password, setPassword] = useState("");
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
+
+  const isAdminPage = pathname === "/admin";
 
   const handleAdminClick = () => {
     setIsDialogOpen(true);
   };
 
-  const handlePasswordSubmit = async () => {
-    // !! SECURITY WARNING !!
-    // This is NOT a secure way to handle passwords.
-    // We are checking a hardcoded value here.
-    // For a real application, please use Firebase Authentication.
-    //
-    // Example of how you *would* check against Firestore:
-    //
-    // try {
-    //   const docRef = doc(db, "settings", "admin");
-    //   const docSnap = await getDoc(docRef);
-    //   if (docSnap.exists() && docSnap.data().password === password) {
-    //      // Grant access
-    //   } else {
-    //      // Deny access
-    //   }
-    // } catch (error) {
-    //   console.error("Error checking password:", error);
-    //   // Handle error
-    // }
+  const handleExitAdminClick = () => {
+    router.push("/");
+  };
 
+  const handlePasswordSubmit = async () => {
     if (password === "1234") {
       toast({
         title: "Akses Diberikan",
@@ -76,10 +60,17 @@ export default function Header() {
           <Link href="/" className="text-2xl font-bold text-primary">
             CrewClock
           </Link>
-          <Button variant="outline" onClick={handleAdminClick}>
-            <UserCog className="h-5 w-5 mr-2" />
-            Admin
-          </Button>
+          {isAdminPage ? (
+            <Button variant="outline" onClick={handleExitAdminClick}>
+              <LogOut className="h-5 w-5 mr-2" />
+              Exit Admin
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={handleAdminClick}>
+              <UserCog className="h-5 w-5 mr-2" />
+              Admin
+            </Button>
+          )}
         </nav>
       </header>
 
