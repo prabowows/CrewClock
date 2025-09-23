@@ -16,6 +16,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { UserCog } from "lucide-react";
+// We don't use db for now, but this shows how you would import it
+// import { db } from "@/lib/firebase"; 
+// import { doc, getDoc } from "firebase/firestore";
 
 export default function Header() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -27,7 +30,27 @@ export default function Header() {
     setIsDialogOpen(true);
   };
 
-  const handlePasswordSubmit = () => {
+  const handlePasswordSubmit = async () => {
+    // !! SECURITY WARNING !!
+    // This is NOT a secure way to handle passwords.
+    // We are checking a hardcoded value here.
+    // For a real application, please use Firebase Authentication.
+    //
+    // Example of how you *would* check against Firestore:
+    //
+    // try {
+    //   const docRef = doc(db, "settings", "admin");
+    //   const docSnap = await getDoc(docRef);
+    //   if (docSnap.exists() && docSnap.data().password === password) {
+    //      // Grant access
+    //   } else {
+    //      // Deny access
+    //   }
+    // } catch (error) {
+    //   console.error("Error checking password:", error);
+    //   // Handle error
+    // }
+
     if (password === "1234") {
       toast({
         title: "Akses Diberikan",
