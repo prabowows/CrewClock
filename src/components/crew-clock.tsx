@@ -113,11 +113,11 @@ export default function CrewClock() {
         setIsLocating(false);
       },
       (error) => {
-        setLocationError(error.message);
+        setLocationError("Position update is unavailable.");
         setIsLocating(false);
         setDistance(null);
       },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
   }, [selectedCrewId, assignedStore]);
 
@@ -200,7 +200,7 @@ export default function CrewClock() {
           <div className="space-y-4 text-center">
             {capturedImage ? (
               <div className="relative">
-                <Image src={capturedImage} alt="Selfie" width={400} height={300} className="rounded-lg mx-auto" />
+                <img src={capturedImage} alt="Selfie" width={400} height={300} className="rounded-lg mx-auto" />
                 <Button onClick={() => setCapturedImage(null)} variant="outline" size="sm" className="mt-2">Ambil Ulang Foto</Button>
               </div>
             ) : (
@@ -236,5 +236,3 @@ export default function CrewClock() {
     </Card>
   );
 }
-
-    
