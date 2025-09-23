@@ -215,7 +215,6 @@ export default function CrewClock() {
     setIsProcessing(true);
   
     try {
-      // The capturedImage is already a base64 data URL
       const photoURL = capturedImage;
   
       await addDoc(collection(db, 'attendance'), {
@@ -233,7 +232,10 @@ export default function CrewClock() {
         description: `${selectedCrewMember.name} at ${assignedStore.name}`,
         variant: 'default',
       });
+      // Reset to initial state
       setCapturedImage(null);
+      setSelectedCrewId(null);
+
     } catch (e) {
       console.error('Error during clock action: ', e);
       toast({
