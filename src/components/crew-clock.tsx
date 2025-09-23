@@ -135,20 +135,22 @@ export default function CrewClock() {
   
     const q = query(
       collection(db, 'attendance'),
-      where('crewMemberId', '==', selectedCrewId),
-      orderBy('timestamp', 'desc'),
-      limit(1)
+      where('crewMemberId', '==', selectedCrewId)
     );
   
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        const data = doc.data();
-        setLastAction({ 
-          id: doc.id, 
-          ...data,
-          timestamp: (data.timestamp as Timestamp).toDate()
-        } as AttendanceLog);
+        const logs = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                timestamp: (data.timestamp as Timestamp).toDate(),
+            } as AttendanceLog;
+        }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        
+        setLastAction(logs[0] || null);
+
       } else {
         setLastAction(null);
       }
