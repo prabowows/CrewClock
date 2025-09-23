@@ -1,7 +1,7 @@
 import type { Store, CrewMember, AttendanceLog } from './types';
 
 export const stores: Store[] = [
-  { id: 'store-1', name: 'Downtown Central', latitude: 34.052235, longitude: -118.243683 },
+  { id: 'store-1', name: 'Downtown Central', latitude: 110.3775794, longitude: -6.9483907 },
   { id: 'store-2', name: 'Beachside Outlet', latitude: 33.993020, longitude: -118.479530 },
   { id: 'store-3', name: 'Mountain View Branch', latitude: 34.1366, longitude: -118.1251 },
 ];
