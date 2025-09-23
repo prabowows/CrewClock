@@ -1,5 +1,8 @@
 import type { Store, CrewMember, AttendanceLog, BroadcastMessage } from './types';
 
+// Data toko, kru, dan log kehadiran sekarang akan dikelola di Firestore.
+// File ini menyimpan data statis yang dapat digunakan untuk mengisi database (seeding).
+
 export const stores: Store[] = [
   { id: 'store-1', name: 'Semarang Store', latitude: -6.9483907, longitude: 110.3775794 },
   { id: 'store-2', name: 'Downtown Central', latitude: 34.0522, longitude: -118.2437 },
@@ -45,6 +48,7 @@ export const attendanceLogs: AttendanceLog[] = [
     photoURL: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
   },
 ];
+
 
 export const broadcastMessages: BroadcastMessage[] = [
   {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,10 +10,11 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { stores, crewMembers as initialCrew } from '@/lib/data';
-import type { CrewMember } from '@/lib/types';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, onSnapshot } from 'firebase/firestore';
+import type { CrewMember, Store } from '@/lib/types';
 import { validateAddressAction } from '@/lib/actions';
-import { Users, PlusCircle, Sparkles, Loader } from 'lucide-react';
+import { PlusCircle, Sparkles, Loader } from 'lucide-react';
 
 const crewSchema = z.object({
   name: z.string().min(2, "Crew member name must be at least 2 characters."),
@@ -22,10 +23,24 @@ const crewSchema = z.object({
 });
 
 export default function CrewManagement() {
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>(initialCrew);
+  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [addressValidation, setAddressValidation] = useState<{ isValid: boolean; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
+      setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+    });
+    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
+      setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    });
+    return () => {
+      unsubCrew();
+      unsubStores();
+    };
+  }, []);
 
   const form = useForm<z.infer<typeof crewSchema>>({
     resolver: zodResolver(crewSchema),
@@ -55,15 +70,16 @@ export default function CrewManagement() {
     });
   };
 
-  function onSubmit(values: z.infer<typeof crewSchema>) {
-    const newCrewMember: CrewMember = {
-      id: `crew-${Date.now()}`,
-      ...values,
-    };
-    setCrewMembers(prev => [...prev, newCrewMember]);
-    toast({ title: "Crew Member Added", description: `${values.name} has been successfully added.` });
-    form.reset();
-    setAddressValidation(null);
+  async function onSubmit(values: z.infer<typeof crewSchema>) {
+    try {
+      await addDoc(collection(db, 'crew'), values);
+      toast({ title: "Crew Member Added", description: `${values.name} has been successfully added.` });
+      form.reset();
+      setAddressValidation(null);
+    } catch (e) {
+      console.error("Error adding document: ", e);
+      toast({ variant: "destructive", title: "Error", description: "Could not add crew member." });
+    }
   }
 
   return (

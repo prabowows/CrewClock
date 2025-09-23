@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -10,10 +10,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { attendanceLogs as initialLogs } from "@/lib/data";
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
+import type { AttendanceLog } from '@/lib/types';
 
 export default function AttendanceLog() {
-  const [logs] = useState(initialLogs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
+  const [logs, setLogs] = useState<AttendanceLog[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'attendance'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const logsData: AttendanceLog[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        logsData.push({
+          id: doc.id,
+          ...data,
+          timestamp: (data.timestamp as Timestamp).toDate(),
+        } as AttendanceLog);
+      });
+      setLogs(logsData);
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="border rounded-lg">

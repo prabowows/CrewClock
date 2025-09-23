@@ -19,22 +19,26 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell } from "lucide-react";
-import { crewMembers, stores, attendanceLogs as initialLogs, broadcastMessages } from "@/lib/data";
-import type { CrewMember, AttendanceLog } from "@/lib/types";
+import { broadcastMessages } from "@/lib/data";
+import type { CrewMember, Store, AttendanceLog } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, query, where, orderBy, limit, onSnapshot, getDocs } from "firebase/firestore";
 
 
 export default function CrewClock() {
+  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
-  const [attendance, setAttendance] = useState<AttendanceLog[]>(initialLogs);
+  const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   
@@ -47,21 +51,55 @@ export default function CrewClock() {
 
   const { toast } = useToast();
 
+  useEffect(() => {
+    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
+      setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+    });
+    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
+      setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    });
+
+    return () => {
+      unsubCrew();
+      unsubStores();
+    };
+  }, []);
+
   const selectedCrewMember = useMemo(
     () => crewMembers.find((c) => c.id === selectedCrewId),
-    [selectedCrewId]
+    [selectedCrewId, crewMembers]
   );
   
   const assignedStore = useMemo(
     () => stores.find((s) => s.id === selectedCrewMember?.storeId),
-    [selectedCrewMember]
+    [selectedCrewMember, stores]
   );
 
-  const lastAction = useMemo(() => {
-    return attendance
-      .filter((log) => log.crewMemberId === selectedCrewId)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
-  }, [attendance, selectedCrewId]);
+  useEffect(() => {
+    if (!selectedCrewId) {
+      setLastAction(null);
+      return;
+    }
+  
+    const q = query(
+      collection(db, 'attendance'),
+      where('crewMemberId', '==', selectedCrewId),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+  
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const doc = snapshot.docs[0];
+        setLastAction({ id: doc.id, ...doc.data() } as AttendanceLog);
+      } else {
+        setLastAction(null);
+      }
+    });
+  
+    return () => unsubscribe();
+  }, [selectedCrewId]);
+
 
   const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage;
   const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage;
@@ -157,28 +195,32 @@ export default function CrewClock() {
     };
   }, [selectedCrewId, toast]);
 
-  const handleClockAction = (type: 'in' | 'out') => {
+  const handleClockAction = async (type: 'in' | 'out') => {
     if (!selectedCrewMember || !assignedStore) return;
 
-    const newLog: AttendanceLog = {
-      id: `log-${Date.now()}`,
-      crewMemberId: selectedCrewMember.id,
-      crewMemberName: selectedCrewMember.name,
-      storeId: assignedStore.id,
-      storeName: assignedStore.name,
-      timestamp: new Date(),
-      type,
-      photoURL: capturedImage || undefined,
-    };
-    setAttendance((prev) => [...prev, newLog]);
-    toast({
-      title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
-      description: `${selectedCrewMember.name} at ${assignedStore.name}`,
-      variant: "default",
-    });
-    setCapturedImage(null);
-    // Reset selection to force camera re-initialization
-    setSelectedCrewId(null);
+    try {
+      await addDoc(collection(db, 'attendance'), {
+        crewMemberId: selectedCrewMember.id,
+        crewMemberName: selectedCrewMember.name,
+        storeId: assignedStore.id,
+        storeName: assignedStore.name,
+        timestamp: new Date(),
+        type,
+        photoURL: capturedImage || '',
+      });
+
+      toast({
+        title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
+        description: `${selectedCrewMember.name} at ${assignedStore.name}`,
+        variant: "default",
+      });
+      setCapturedImage(null);
+      // Reset selection to force camera re-initialization
+      setSelectedCrewId(null);
+    } catch (e) {
+      console.error("Error adding document: ", e);
+      toast({ variant: "destructive", title: "Error", description: "Could not record attendance." });
+    }
   };
 
   const handleTakePhoto = () => {
