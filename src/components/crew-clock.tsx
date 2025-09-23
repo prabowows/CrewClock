@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import Image from "next/image";
 import {
   Card,
   CardContent,
@@ -32,10 +31,8 @@ export default function CrewClock() {
   const [isLocating, setIsLocating] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
   const [attendance, setAttendance] = useState<AttendanceLog[]>(initialLogs);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast();
 
@@ -59,32 +56,6 @@ export default function CrewClock() {
   const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage;
 
   useEffect(() => {
-    async function getCameraPermission() {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-          setHasCameraPermission(true);
-        } catch (error) {
-          console.error("Error accessing camera:", error);
-          setHasCameraPermission(false);
-          toast({
-            variant: "destructive",
-            title: "Camera Access Denied",
-            description: "Please enable camera permissions in your browser settings.",
-          });
-        }
-      } else {
-        setHasCameraPermission(false);
-      }
-    }
-    getCameraPermission();
-  }, [toast]);
-
-
-  useEffect(() => {
     if (!selectedCrewId) {
       setLocation(null);
       setDistance(null);
@@ -95,30 +66,35 @@ export default function CrewClock() {
 
     setIsLocating(true);
     setLocationError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const currentLocation = { lat: latitude, lon: longitude };
-        setLocation(currentLocation);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const currentLocation = { lat: latitude, lon: longitude };
+          setLocation(currentLocation);
 
-        if (assignedStore) {
-          const dist = calculateDistance(
-            currentLocation.lat,
-            currentLocation.lon,
-            assignedStore.latitude,
-            assignedStore.longitude
-          );
-          setDistance(dist);
-        }
-        setIsLocating(false);
-      },
-      (error) => {
-        setLocationError("Position update is unavailable.");
-        setIsLocating(false);
-        setDistance(null);
-      },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-    );
+          if (assignedStore) {
+            const dist = calculateDistance(
+              currentLocation.lat,
+              currentLocation.lon,
+              assignedStore.latitude,
+              assignedStore.longitude
+            );
+            setDistance(dist);
+          }
+          setIsLocating(false);
+        },
+        (error) => {
+          setLocationError("Position update is unavailable.");
+          setIsLocating(false);
+          setDistance(null);
+        },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      );
+    } else {
+      setLocationError("Geolocation is not supported by this browser.");
+      setIsLocating(false);
+    }
   }, [selectedCrewId, assignedStore]);
 
   const handleClockAction = (type: 'in' | 'out') => {
@@ -143,21 +119,20 @@ export default function CrewClock() {
     setCapturedImage(null); // Reset image after clocking action
   };
 
-  const handleCapture = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-        const dataUrl = canvas.toDataURL('image/png');
-        setCapturedImage(dataUrl);
-      }
-    }
+  const handleTakePhotoClick = () => {
+    fileInputRef.current?.click();
   };
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setCapturedImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const getStatus = () => {
     if (!selectedCrewId) return <AlertDescription>Silakan pilih nama Anda untuk memulai.</AlertDescription>;
@@ -205,22 +180,20 @@ export default function CrewClock() {
               </div>
             ) : (
               <div className="space-y-2">
-                <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay playsInline muted />
-                {!hasCameraPermission && hasCameraPermission !== null && (
-                   <Alert variant="destructive">
-                     <AlertTitle>Perlu Akses Kamera</AlertTitle>
-                     <AlertDescription>
-                       Izinkan akses kamera untuk menggunakan fitur ini.
-                     </AlertDescription>
-                   </Alert>
-                )}
-                 <Button onClick={handleCapture} disabled={!hasCameraPermission} size="lg">
+                 <input
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  onChange={handleFileChange}
+                  ref={fileInputRef}
+                  className="hidden"
+                />
+                 <Button onClick={handleTakePhotoClick} size="lg">
                    <Camera className="mr-2" />
                    Ambil Selfie
                  </Button>
               </div>
             )}
-             <canvas ref={canvasRef} className="hidden" />
           </div>
         )}
 
