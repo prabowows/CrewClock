@@ -89,7 +89,7 @@ export default function CrewClock() {
           setIsLocating(false);
           setDistance(null);
         },
-        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 }
       );
     } else {
       setLocationError("Geolocation is not supported by this browser.");
