@@ -19,7 +19,7 @@ const firebaseConfig = {
 
 const stores = [
   { id: 'store-1', name: 'Semarang Store', latitude: -6.9483907, longitude: 110.3775794 },
-  { id: 'store-2', name: 'Downtown Central', latitude: 34.0522, longitude: -118.2437 },
+  { id: 'store-2', name: 'Downtown Central', latitude: -6.2088, longitude: 106.8456 }, // Jakarta
   { id: 'store-3', name: 'Beachside Outlet', latitude: 34.0194, longitude: -118.4912 },
 ];
 
