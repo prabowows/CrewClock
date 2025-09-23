@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, MessageSquare } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, MessageSquare, Bell } from "lucide-react";
 import { crewMembers, stores, attendanceLogs as initialLogs, broadcastMessages } from "@/lib/data";
 import type { CrewMember, AttendanceLog } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
@@ -226,35 +226,40 @@ export default function CrewClock() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-
-        <div className="space-y-4">
-            <h3 className="text-lg font-medium text-center text-primary flex items-center justify-center"><MessageSquare className="mr-2"/>Pesan Siaran</h3>
-             <Carousel
-                opts={{
-                    align: "start",
-                }}
-                className="w-full"
+        <Card className="bg-secondary/50">
+            <CardHeader className="p-4">
+                <CardTitle className="text-lg flex items-center">
+                    <Bell className="mr-2 h-5 w-5 text-primary"/>
+                    Papan Pengumuman
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+                <Carousel
+                    opts={{ align: "start" }}
+                    className="w-full"
                 >
-                <CarouselContent>
-                    {broadcastMessages.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()).map((message) => (
-                    <CarouselItem key={message.id} className="md:basis-1/2 lg:basis-full">
-                        <div className="p-1">
-                        <Card>
-                            <CardContent className="flex flex-col p-4 space-y-2">
-                                <p className="text-sm text-muted-foreground">{message.message}</p>
-                                <p className="text-xs text-right text-muted-foreground/80">
-                                    {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                                </p>
-                            </CardContent>
-                        </Card>
-                        </div>
-                    </CarouselItem>
-                    ))}
-                </CarouselContent>
-                <CarouselPrevious className="hidden sm:flex"/>
-                <CarouselNext  className="hidden sm:flex"/>
-            </Carousel>
-        </div>
+                    <CarouselContent>
+                        {broadcastMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).map((message) => (
+                            <CarouselItem key={message.id}>
+                                <div className="p-1">
+                                    <Card>
+                                        <CardContent className="flex flex-col p-4 space-y-2">
+                                            <p className="text-sm text-foreground/90">{message.message}</p>
+                                            <p className="text-xs text-right text-muted-foreground">
+                                                {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            </CarouselItem>
+                        ))}
+                    </CarouselContent>
+                    <CarouselPrevious className="hidden sm:flex -left-4" />
+                    <CarouselNext className="hidden sm:flex -right-4" />
+                </Carousel>
+            </CardContent>
+        </Card>
+
 
         <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null);}} value={selectedCrewId || ""}>
           <SelectTrigger className="w-full text-lg h-12">
