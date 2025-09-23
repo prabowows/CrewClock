@@ -26,8 +26,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
-import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, orderBy, limit, onSnapshot, getDocs, Timestamp } from "firebase/firestore";
+import { db, storage } from "@/lib/firebase";
+import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 
 
 export default function CrewClock() {
@@ -37,6 +38,7 @@ export default function CrewClock() {
   const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
   const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -194,9 +196,17 @@ export default function CrewClock() {
   }, [selectedCrewId, toast]);
 
   const handleClockAction = async (type: 'in' | 'out') => {
-    if (!selectedCrewMember || !assignedStore) return;
+    if (!selectedCrewMember || !assignedStore || !capturedImage) return;
+
+    setIsProcessing(true);
 
     try {
+      // 1. Upload image to Firebase Storage
+      const storageRef = ref(storage, `attendance/${selectedCrewMember.id}-${new Date().toISOString()}.png`);
+      const uploadResult = await uploadString(storageRef, capturedImage, 'data_url');
+      const photoURL = await getDownloadURL(uploadResult.ref);
+
+      // 2. Add attendance record to Firestore with the image URL
       await addDoc(collection(db, 'attendance'), {
         crewMemberId: selectedCrewMember.id,
         crewMemberName: selectedCrewMember.name,
@@ -204,7 +214,7 @@ export default function CrewClock() {
         storeName: assignedStore.name,
         timestamp: new Date(),
         type,
-        photoURL: capturedImage || '',
+        photoURL: photoURL,
       });
 
       toast({
@@ -213,11 +223,11 @@ export default function CrewClock() {
         variant: "default",
       });
       setCapturedImage(null);
-      // Don't reset selection, allow user to see the button state change
-      // setSelectedCrewId(null); 
     } catch (e) {
-      console.error("Error adding document: ", e);
-      toast({ variant: "destructive", title: "Error", description: "Could not record attendance." });
+      console.error("Error during clock action: ", e);
+      toast({ variant: "destructive", title: "Error", description: "Could not record attendance. Check storage rules." });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -248,7 +258,6 @@ export default function CrewClock() {
   const handleRetakePhoto = () => {
     setCapturedImage(null);
     // The camera permission useEffect will re-run and start the stream again
-    // A bit of a hack to re-trigger the camera useEffect
     const currentId = selectedCrewId;
     setSelectedCrewId(null);
     setTimeout(() => setSelectedCrewId(currentId), 0);
@@ -338,7 +347,7 @@ export default function CrewClock() {
               <div className="relative group">
                 <img src={capturedImage} alt="Selfie" className="rounded-lg mx-auto max-w-full h-auto" />
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button onClick={handleRetakePhoto} variant="outline" size="sm">
+                    <Button onClick={handleRetakePhoto} variant="outline" size="sm" disabled={isProcessing}>
                         <RefreshCcw className="mr-2" />
                         Ambil Ulang
                     </Button>
@@ -364,7 +373,7 @@ export default function CrewClock() {
                      </div>
                    )}
                 </div>
-                 <Button onClick={handleTakePhoto} size="lg" disabled={hasCameraPermission !== true}>
+                 <Button onClick={handleTakePhoto} size="lg" disabled={hasCameraPermission !== true || isProcessing}>
                    <Camera className="mr-2" />
                    Ambil Foto
                  </Button>
@@ -375,11 +384,13 @@ export default function CrewClock() {
 
       </CardContent>
       <CardFooter className="flex justify-between gap-4">
-        <Button className="w-full h-14 text-lg" disabled={!canClockIn} onClick={() => handleClockAction('in')}>
-          <LogIn className="mr-2 h-6 w-6" /> Clock In
+        <Button className="w-full h-14 text-lg" disabled={!canClockIn || isProcessing} onClick={() => handleClockAction('in')}>
+          {isProcessing && (!canClockOut) ? <Loader className="animate-spin" /> : <LogIn className="mr-2 h-6 w-6" />}
+          Clock In
         </Button>
-        <Button variant="outline" className="w-full h-14 text-lg" disabled={!canClockOut} onClick={() => handleClockAction('out')}>
-          <LogOut className="mr-2 h-6 w-6" /> Clock Out
+        <Button variant="outline" className="w-full h-14 text-lg" disabled={!canClockOut || isProcessing} onClick={() => handleClockAction('out')}>
+          {isProcessing && canClockOut ? <Loader className="animate-spin" /> : <LogOut className="mr-2 h-6 w-6" />}
+          Clock Out
         </Button>
       </CardFooter>
     </Card>

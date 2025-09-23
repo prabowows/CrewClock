@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   Table,
   TableBody,
@@ -21,7 +22,7 @@ import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import type { AttendanceLog } from '@/lib/types';
 import { cn } from "@/lib/utils";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Camera } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 
@@ -129,6 +130,7 @@ export default function AttendanceLog() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Photo</TableHead>
               <TableHead>Crew Member</TableHead>
               <TableHead>Store</TableHead>
               <TableHead>Time</TableHead>
@@ -138,6 +140,17 @@ export default function AttendanceLog() {
           <TableBody>
             {logs.length > 0 ? logs.map((log) => (
               <TableRow key={log.id}>
+                <TableCell>
+                  {log.photoURL ? (
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
+                       <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={40} height={40} className="object-cover w-full h-full" />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                      <Camera className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell className="font-medium">{log.crewMemberName}</TableCell>
                 <TableCell>{log.storeName}</TableCell>
                 <TableCell>{log.timestamp.toLocaleString()}</TableCell>
@@ -149,7 +162,7 @@ export default function AttendanceLog() {
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
+                <TableCell colSpan={5} className="h-24 text-center">
                   No attendance records found for this period.
                 </TableCell>
               </TableRow>
