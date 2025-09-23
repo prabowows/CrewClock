@@ -28,6 +28,7 @@ const crewMembers = [
   { id: 'crew-2', name: 'Maria Garcia', storeId: 'store-1', address: '456 Grand Ave, Los Angeles, CA 90012' },
   { id: 'crew-3', name: 'James Smith', storeId: 'store-3', address: '789 Ocean Front Walk, Santa Monica, CA 90401' },
   { id: 'crew-4', name: 'Patricia Williams', storeId: 'store-1', address: '101 Rosemont Ave, Pasadena, CA 91103' },
+  { id: 'crew-5', name: 'David Lee', storeId: 'store-2', address: '210 Sunset Blvd, Los Angeles, CA 90012' },
 ];
 
 const attendanceLogs = [
