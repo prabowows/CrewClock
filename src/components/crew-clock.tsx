@@ -263,7 +263,8 @@ export default function CrewClock() {
         context.translate(video.videoWidth, 0);
         context.scale(-1, 1);
         context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-        const dataUrl = canvas.toDataURL('image/png');
+        // Compress the image
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         setCapturedImage(dataUrl);
       }
 
@@ -420,3 +421,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    
