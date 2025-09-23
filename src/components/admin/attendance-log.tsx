@@ -10,6 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -19,8 +26,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'firebase/firestore';
-import type { AttendanceLog } from '@/lib/types';
+import { collection, onSnapshot, query, orderBy, where, Timestamp, QueryConstraint } from 'firebase/firestore';
+import type { AttendanceLog, Store } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Camera } from "lucide-react";
 import { format } from "date-fns";
@@ -28,6 +35,8 @@ import { DateRange } from 'react-day-picker';
 
 export default function AttendanceLog() {
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>('all');
   const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(),
     to: new Date(),
@@ -37,9 +46,20 @@ export default function AttendanceLog() {
 
 
   useEffect(() => {
+    const unsubStores = onSnapshot(collection(db, 'stores'), (snapshot) => {
+      const storesData: Store[] = [];
+      snapshot.forEach((doc) => {
+        storesData.push({ id: doc.id, ...doc.data() } as Store);
+      });
+      setStores(storesData);
+    });
+
+    return () => unsubStores();
+  }, []);
+  
+  useEffect(() => {
     if (!date?.from) return;
     
-    // Adjust 'to' date to include the entire day, or use 'from' if 'to' is not set
     const fromDate = date.from;
     const toDate = date.to || date.from;
 
@@ -49,11 +69,20 @@ export default function AttendanceLog() {
     const startTimestamp = Timestamp.fromDate(startOfDayFrom);
     const endTimestamp = Timestamp.fromDate(endOfDayTo);
 
+    const queryConstraints: QueryConstraint[] = [
+        where('timestamp', '>=', startTimestamp),
+        where('timestamp', '<=', endTimestamp),
+    ];
+
+    if (selectedStoreId !== 'all') {
+        queryConstraints.push(where('storeId', '==', selectedStoreId));
+    }
+    
+    queryConstraints.push(orderBy('timestamp', 'desc'));
+
     const q = query(
       collection(db, 'attendance'), 
-      where('timestamp', '>=', startTimestamp),
-      where('timestamp', '<=', endTimestamp),
-      orderBy('timestamp', 'desc')
+      ...queryConstraints
     );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -70,7 +99,7 @@ export default function AttendanceLog() {
     });
 
     return () => unsubscribe();
-  }, [date]);
+  }, [date, selectedStoreId]);
 
   const handleApplyDateRange = () => {
     setDate(selectedDateRange);
@@ -125,6 +154,17 @@ export default function AttendanceLog() {
             </div>
           </PopoverContent>
         </Popover>
+        <Select value={selectedStoreId} onValueChange={setSelectedStoreId}>
+            <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select a store" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Semua Toko</SelectItem>
+                {stores.map(store => (
+                    <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
       </div>
       <div className="border rounded-lg">
         <Table>
