@@ -19,8 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell } from "lucide-react";
-import { broadcastMessages } from "@/lib/data";
-import type { CrewMember, Store, AttendanceLog } from "@/lib/types";
+import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
@@ -33,6 +32,7 @@ import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp
 export default function CrewClock() {
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -60,6 +60,20 @@ export default function CrewClock() {
       setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
     });
 
+    const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
+    const unsubBroadcasts = onSnapshot(qBroadcasts, (snapshot) => {
+        const broadcastsData: BroadcastMessage[] = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            broadcastsData.push({
+                id: doc.id,
+                ...data,
+                timestamp: (data.timestamp as Timestamp).toDate(),
+            } as BroadcastMessage);
+        });
+        setBroadcasts(broadcastsData);
+    });
+
     // Get location once on mount
     setLocationError(null);
     if (navigator.geolocation) {
@@ -83,6 +97,7 @@ export default function CrewClock() {
     return () => {
       unsubCrew();
       unsubStores();
+      unsubBroadcasts();
     };
   }, []);
 
@@ -196,13 +211,13 @@ export default function CrewClock() {
 
   const handleClockAction = async (type: 'in' | 'out') => {
     if (!selectedCrewMember || !assignedStore || !capturedImage) return;
-
+  
     setIsProcessing(true);
-
+  
     try {
       // The capturedImage is already a base64 data URL
       const photoURL = capturedImage;
-
+  
       await addDoc(collection(db, 'attendance'), {
         crewMemberId: selectedCrewMember.id,
         crewMemberName: selectedCrewMember.name,
@@ -212,16 +227,20 @@ export default function CrewClock() {
         type,
         photoURL: photoURL,
       });
-
+  
       toast({
         title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
         description: `${selectedCrewMember.name} at ${assignedStore.name}`,
-        variant: "default",
+        variant: 'default',
       });
       setCapturedImage(null);
     } catch (e) {
-      console.error("Error during clock action: ", e);
-      toast({ variant: "destructive", title: "Error", description: "Could not record attendance. Check Firestore rules." });
+      console.error('Error during clock action: ', e);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not record attendance. Check Firestore rules.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -287,32 +306,36 @@ export default function CrewClock() {
                 </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-                <Carousel
-                    plugins={[autoplay.current]}
-                    opts={{ align: "start", loop: true }}
-                    className="w-full"
-                    onMouseEnter={autoplay.current.stop}
-                    onMouseLeave={autoplay.current.reset}
-                >
-                    <CarouselContent>
-                        {broadcastMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).map((message) => (
-                            <CarouselItem key={message.id}>
-                                <div className="p-1">
-                                    <Card>
-                                        <CardContent className="flex flex-col p-4 space-y-2">
-                                            <p className="text-sm text-foreground/90">{message.message}</p>
-                                            <p className="text-xs text-right text-muted-foreground">
-                                                {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-                            </CarouselItem>
-                        ))}
-                    </CarouselContent>
-                    <CarouselPrevious className="hidden sm:flex -left-4" />
-                    <CarouselNext className="hidden sm:flex -right-4" />
-                </Carousel>
+                {broadcasts.length > 0 ? (
+                    <Carousel
+                        plugins={[autoplay.current]}
+                        opts={{ align: "start", loop: true }}
+                        className="w-full"
+                        onMouseEnter={autoplay.current.stop}
+                        onMouseLeave={autoplay.current.reset}
+                    >
+                        <CarouselContent>
+                            {broadcasts.map((message) => (
+                                <CarouselItem key={message.id}>
+                                    <div className="p-1">
+                                        <Card>
+                                            <CardContent className="flex flex-col p-4 space-y-2">
+                                                <p className="text-sm text-foreground/90">{message.message}</p>
+                                                <p className="text-xs text-right text-muted-foreground">
+                                                    {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                                                </p>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                </CarouselItem>
+                            ))}
+                        </CarouselContent>
+                        <CarouselPrevious className="hidden sm:flex -left-4" />
+                        <CarouselNext className="hidden sm:flex -right-4" />
+                    </Carousel>
+                ) : (
+                    <p className="text-sm text-center text-muted-foreground p-4">Tidak ada pengumuman saat ini.</p>
+                )}
             </CardContent>
         </Card>
 

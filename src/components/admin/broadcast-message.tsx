@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { db } from '@/lib/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 import { Send } from 'lucide-react';
 
 const broadcastSchema = z.object({
@@ -23,13 +25,21 @@ export default function BroadcastMessage() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof broadcastSchema>) {
-    console.log("Broadcast message:", values.message);
-    toast({
-      title: "Broadcast Sent!",
-      description: "Your message has been sent to all crew members.",
-    });
-    form.reset();
+  async function onSubmit(values: z.infer<typeof broadcastSchema>) {
+    try {
+      await addDoc(collection(db, 'broadcasts'), {
+        message: values.message,
+        timestamp: new Date(),
+      });
+      toast({
+        title: "Broadcast Sent!",
+        description: "Your message has been saved to Firebase and sent to all crew members.",
+      });
+      form.reset();
+    } catch (e) {
+        console.error("Error sending broadcast: ", e);
+        toast({ variant: "destructive", title: "Error", description: "Could not send broadcast." });
+    }
   }
 
   return (

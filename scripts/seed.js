@@ -64,6 +64,24 @@ const attendanceLogs = [
   },
 ];
 
+const broadcastMessages = [
+    {
+      id: 'msg-1',
+      message: 'Rapat tim jam 5 sore hari ini di ruang konferensi utama. Kehadiran wajib.',
+      timestamp: new Date(new Date().setDate(new Date().getDate() - 1)),
+    },
+    {
+      id: 'msg-2',
+      message: 'Harap diingat untuk membersihkan area kerja Anda sebelum pulang. Jaga kebersihan tempat kita!',
+      timestamp: new Date(new Date().setDate(new Date().getDate() - 2)),
+    },
+    {
+      id: 'msg-3',
+      message: 'Penjualan khusus akhir pekan ini! Diskon 20% untuk semua item. Beri tahu pelanggan Anda!',
+      timestamp: new Date(new Date().setHours(new Date().getHours() - 5)),
+    }
+];
+
 async function seedDatabase() {
     if (!firebaseConfig.projectId || firebaseConfig.projectId === "your-project-id") {
         console.error("Please paste your Firebase config into scripts/seed.js before running.");
@@ -107,6 +125,18 @@ async function seedDatabase() {
             console.log(`- Seeded attendance log: ${log.id}`);
         } catch (error) {
             console.error(`Error seeding attendance log ${log.id}:`, error);
+        }
+    }
+
+    // Seed broadcast messages
+    for (const message of broadcastMessages) {
+        try {
+            const { id, timestamp, ...data } = message;
+            const firestoreTimestamp = Timestamp.fromDate(timestamp);
+            await setDoc(doc(db, "broadcasts", id), { ...data, timestamp: firestoreTimestamp });
+            console.log(`- Seeded broadcast message: ${message.id}`);
+        } catch (error) {
+            console.error(`Error seeding broadcast message ${message.id}:`, error);
         }
     }
 
