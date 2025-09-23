@@ -17,6 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -43,6 +51,7 @@ export default function AttendanceLog() {
   });
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>(date);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLog | null>(null);
 
 
   useEffect(() => {
@@ -166,50 +175,67 @@ export default function AttendanceLog() {
             </SelectContent>
         </Select>
       </div>
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Photo</TableHead>
-              <TableHead>Crew Member</TableHead>
-              <TableHead>Store</TableHead>
-              <TableHead>Time</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {logs.length > 0 ? logs.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell>
-                  {log.photoURL ? (
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
-                       <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={40} height={40} className="object-cover w-full h-full" />
-                    </div>
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                      <Camera className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="font-medium">{log.crewMemberName}</TableCell>
-                <TableCell>{log.storeName}</TableCell>
-                <TableCell>{log.timestamp.toLocaleString()}</TableCell>
-                <TableCell className="text-right">
-                  <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
-                    {log.type === "in" ? "Clock In" : "Clock Out"}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            )) : (
+      <Dialog>
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
-                  No attendance records found for this period.
-                </TableCell>
+                <TableHead>Photo</TableHead>
+                <TableHead>Crew Member</TableHead>
+                <TableHead>Store</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {logs.length > 0 ? logs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell>
+                    {log.photoURL ? (
+                      <DialogTrigger asChild onClick={() => setSelectedLogForImage(log)}>
+                        <button className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer">
+                          <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
+                        </button>
+                      </DialogTrigger>
+                    ) : (
+                      <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center">
+                        <Camera className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">{log.crewMemberName}</TableCell>
+                  <TableCell>{log.storeName}</TableCell>
+                  <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
+                      {log.type === "in" ? "Clock In" : "Clock Out"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    No attendance records found for this period.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        {selectedLogForImage && (
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{selectedLogForImage.crewMemberName}</DialogTitle>
+                    <DialogDescription>
+                        {selectedLogForImage.storeName} - {selectedLogForImage.timestamp.toLocaleString()}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="mt-4">
+                    <Image src={selectedLogForImage.photoURL!} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
+                </div>
+            </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
