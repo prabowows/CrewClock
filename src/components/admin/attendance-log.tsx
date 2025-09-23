@@ -10,15 +10,59 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import type { AttendanceLog } from '@/lib/types';
+import { cn } from "@/lib/utils";
+import { CalendarIcon } from "lucide-react";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+
+type FilterType = 'day' | 'week' | 'month';
 
 export default function AttendanceLog() {
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [filter, setFilter] = useState<FilterType>('day');
 
   useEffect(() => {
-    const q = query(collection(db, 'attendance'), orderBy('timestamp', 'desc'));
+    if (!date) return;
+
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (filter) {
+      case 'week':
+        startDate = startOfWeek(date);
+        endDate = endOfWeek(date);
+        break;
+      case 'month':
+        startDate = startOfMonth(date);
+        endDate = endOfMonth(date);
+        break;
+      case 'day':
+      default:
+        startDate = startOfDay(date);
+        endDate = endOfDay(date);
+        break;
+    }
+    
+    const startTimestamp = Timestamp.fromDate(startDate);
+    const endTimestamp = Timestamp.fromDate(endDate);
+
+    const q = query(
+      collection(db, 'attendance'), 
+      where('timestamp', '>=', startTimestamp),
+      where('timestamp', '<=', endTimestamp),
+      orderBy('timestamp', 'desc')
+    );
+    
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const logsData: AttendanceLog[] = [];
       querySnapshot.forEach((doc) => {
@@ -31,35 +75,77 @@ export default function AttendanceLog() {
       });
       setLogs(logsData);
     });
+
     return () => unsubscribe();
-  }, []);
+  }, [date, filter]);
+  
+  const handleDateSelect = (selectedDate: Date | undefined) => {
+    setDate(selectedDate);
+  }
 
   return (
-    <div className="border rounded-lg">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Crew Member</TableHead>
-            <TableHead>Store</TableHead>
-            <TableHead>Time</TableHead>
-            <TableHead className="text-right">Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {logs.map((log) => (
-            <TableRow key={log.id}>
-              <TableCell className="font-medium">{log.crewMemberName}</TableCell>
-              <TableCell>{log.storeName}</TableCell>
-              <TableCell>{log.timestamp.toLocaleString()}</TableCell>
-              <TableCell className="text-right">
-                <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
-                  {log.type === "in" ? "Clock In" : "Clock Out"}
-                </Badge>
-              </TableCell>
+    <div>
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Button variant={filter === 'day' ? 'default' : 'outline'} onClick={() => setFilter('day')}>Day</Button>
+          <Button variant={filter === 'week' ? 'default' : 'outline'} onClick={() => setFilter('week')}>Week</Button>
+          <Button variant={filter === 'month' ? 'default' : 'outline'} onClick={() => setFilter('month')}>Month</Button>
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={"outline"}
+              className={cn(
+                "w-[280px] justify-start text-left font-normal",
+                !date && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {date ? format(date, "PPP") : <span>Pick a date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={handleDateSelect}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Crew Member</TableHead>
+              <TableHead>Store</TableHead>
+              <TableHead>Time</TableHead>
+              <TableHead className="text-right">Action</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {logs.length > 0 ? logs.map((log) => (
+              <TableRow key={log.id}>
+                <TableCell className="font-medium">{log.crewMemberName}</TableCell>
+                <TableCell>{log.storeName}</TableCell>
+                <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                <TableCell className="text-right">
+                  <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
+                    {log.type === "in" ? "Clock In" : "Clock Out"}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            )) : (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center">
+                  No attendance records found for this period.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
