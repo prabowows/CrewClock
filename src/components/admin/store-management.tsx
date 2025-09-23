@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { stores as initialStores } from '@/lib/data';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 import type { Store } from '@/lib/types';
 import { PlusCircle } from 'lucide-react';
 
@@ -20,8 +21,15 @@ const storeSchema = z.object({
 });
 
 export default function StoreManagement() {
-  const [stores, setStores] = useState<Store[]>(initialStores);
+  const [stores, setStores] = useState<Store[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "stores"), (snapshot) => {
+      setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    });
+    return () => unsub();
+  }, []);
 
   const form = useForm<z.infer<typeof storeSchema>>({
     resolver: zodResolver(storeSchema),
@@ -32,14 +40,15 @@ export default function StoreManagement() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof storeSchema>) {
-    const newStore: Store = {
-      id: `store-${Date.now()}`,
-      ...values,
-    };
-    setStores(prev => [...prev, newStore]);
-    toast({ title: "Store Added", description: `${values.name} has been successfully added.` });
-    form.reset();
+  async function onSubmit(values: z.infer<typeof storeSchema>) {
+    try {
+      await addDoc(collection(db, 'stores'), values);
+      toast({ title: "Store Added", description: `${values.name} has been successfully added.` });
+      form.reset();
+    } catch (e) {
+      console.error("Error adding document: ", e);
+      toast({ variant: "destructive", title: "Error", description: "Could not add store." });
+    }
   }
 
   return (
