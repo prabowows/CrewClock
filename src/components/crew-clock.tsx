@@ -18,11 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw } from "lucide-react";
-import { crewMembers, stores, attendanceLogs as initialLogs } from "@/lib/data";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, MessageSquare } from "lucide-react";
+import { crewMembers, stores, attendanceLogs as initialLogs, broadcastMessages } from "@/lib/data";
 import type { CrewMember, AttendanceLog } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { formatDistanceToNow } from 'date-fns';
 
 export default function CrewClock() {
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
@@ -108,6 +110,10 @@ export default function CrewClock() {
     const getCameraPermission = async () => {
       if (!selectedCrewId) {
         setHasCameraPermission(null);
+        if (videoRef.current?.srcObject) {
+            (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+        }
         return;
       }
       if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
@@ -165,6 +171,8 @@ export default function CrewClock() {
       variant: "default",
     });
     setCapturedImage(null);
+    // Reset selection to force camera re-initialization
+    setSelectedCrewId(null);
   };
 
   const handleTakePhoto = () => {
@@ -174,9 +182,14 @@ export default function CrewClock() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const context = canvas.getContext('2d');
-      context?.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-      const dataUrl = canvas.toDataURL('image/png');
-      setCapturedImage(dataUrl);
+      if (context) {
+        // Flip the image horizontally for a mirror effect
+        context.translate(video.videoWidth, 0);
+        context.scale(-1, 1);
+        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+        const dataUrl = canvas.toDataURL('image/png');
+        setCapturedImage(dataUrl);
+      }
 
       // Stop the camera stream
       const stream = video.srcObject as MediaStream;
@@ -189,7 +202,6 @@ export default function CrewClock() {
   const handleRetakePhoto = () => {
     setCapturedImage(null);
     // The camera permission useEffect will re-run and start the stream again
-    // We just need to re-trigger the selectedCrewId dependency
     const currentId = selectedCrewId;
     setSelectedCrewId(null);
     setTimeout(() => setSelectedCrewId(currentId), 0);
@@ -214,6 +226,36 @@ export default function CrewClock() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+
+        <div className="space-y-4">
+            <h3 className="text-lg font-medium text-center text-primary flex items-center justify-center"><MessageSquare className="mr-2"/>Pesan Siaran</h3>
+             <Carousel
+                opts={{
+                    align: "start",
+                }}
+                className="w-full"
+                >
+                <CarouselContent>
+                    {broadcastMessages.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()).map((message) => (
+                    <CarouselItem key={message.id} className="md:basis-1/2 lg:basis-full">
+                        <div className="p-1">
+                        <Card>
+                            <CardContent className="flex flex-col p-4 space-y-2">
+                                <p className="text-sm text-muted-foreground">{message.message}</p>
+                                <p className="text-xs text-right text-muted-foreground/80">
+                                    {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                                </p>
+                            </CardContent>
+                        </Card>
+                        </div>
+                    </CarouselItem>
+                    ))}
+                </CarouselContent>
+                <CarouselPrevious className="hidden sm:flex"/>
+                <CarouselNext  className="hidden sm:flex"/>
+            </Carousel>
+        </div>
+
         <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null);}} value={selectedCrewId || ""}>
           <SelectTrigger className="w-full text-lg h-12">
             <SelectValue placeholder="Pilih nama Anda..." />
@@ -238,17 +280,19 @@ export default function CrewClock() {
             <canvas ref={canvasRef} className="hidden" />
 
             {capturedImage ? (
-              <div className="relative">
+              <div className="relative group">
                 <img src={capturedImage} alt="Selfie" className="rounded-lg mx-auto max-w-full h-auto" />
-                <Button onClick={handleRetakePhoto} variant="outline" size="sm" className="mt-2">
-                  <RefreshCcw className="mr-2" />
-                  Ambil Ulang
-                </Button>
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button onClick={handleRetakePhoto} variant="outline" size="sm">
+                        <RefreshCcw className="mr-2" />
+                        Ambil Ulang
+                    </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                  <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} autoPlay muted playsInline />
                   {hasCameraPermission === false && (
                      <Alert variant="destructive" className="m-4">
                        <Camera className="h-4 w-4" />
@@ -259,7 +303,10 @@ export default function CrewClock() {
                      </Alert>
                   )}
                    {hasCameraPermission === null && selectedCrewId && (
-                     <Loader className="animate-spin" />
+                     <div className="absolute flex flex-col items-center gap-2">
+                        <Loader className="animate-spin" />
+                        <p className="text-sm text-muted-foreground">Memulai kamera...</p>
+                     </div>
                    )}
                 </div>
                  <Button onClick={handleTakePhoto} size="lg" disabled={hasCameraPermission !== true}>
@@ -283,5 +330,3 @@ export default function CrewClock() {
     </Card>
   );
 }
-
-    
