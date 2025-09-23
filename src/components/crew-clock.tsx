@@ -117,7 +117,7 @@ export default function CrewClock() {
         setIsLocating(false);
         setDistance(null);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
     );
   }, [selectedCrewId, assignedStore]);
 
@@ -160,26 +160,26 @@ export default function CrewClock() {
 
 
   const getStatus = () => {
-    if (!selectedCrewId) return <AlertDescription>Please select your name to start.</AlertDescription>;
-    if (isLocating) return <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Getting your location...</AlertDescription>;
-    if (locationError) return <AlertDescription className="flex items-center text-destructive"><WifiOff className="mr-2 h-4 w-4" />Could not get location: {locationError}</AlertDescription>;
-    if (distance === null) return <AlertDescription>Verifying distance from store...</AlertDescription>;
-    if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />You are {distance.toFixed(2)} km away. Please move within 1 km of the store to clock in/out.</AlertDescription>;
-    return <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />You are in range ({distance.toFixed(2)} km away). Ready to clock in/out.</AlertDescription>;
+    if (!selectedCrewId) return <AlertDescription>Silakan pilih nama Anda untuk memulai.</AlertDescription>;
+    if (isLocating) return <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Mendapatkan lokasi Anda...</AlertDescription>;
+    if (locationError) return <AlertDescription className="flex items-center text-destructive"><WifiOff className="mr-2 h-4 w-4" />Tidak bisa mendapatkan lokasi: Gagal memperbarui posisi.</AlertDescription>;
+    if (distance === null) return <AlertDescription>Memverifikasi jarak dari toko...</AlertDescription>;
+    if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km dari toko untuk clock in/out.</AlertDescription>;
+    return <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance.toFixed(2)} km). Siap untuk clock in/out.</AlertDescription>;
   }
 
   return (
     <Card className="w-full max-w-md shadow-2xl">
       <CardHeader>
-        <CardTitle className="text-3xl font-bold text-center text-primary">Crew Attendance</CardTitle>
+        <CardTitle className="text-3xl font-bold text-center text-primary">Absensi Kru</CardTitle>
         <CardDescription className="text-center">
-          Select your name and clock in or out.
+          Pilih nama Anda dan lakukan clock in atau out.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null);}} value={selectedCrewId || ""}>
           <SelectTrigger className="w-full text-lg h-12">
-            <SelectValue placeholder="Select your name..." />
+            <SelectValue placeholder="Pilih nama Anda..." />
           </SelectTrigger>
           <SelectContent>
             {crewMembers.map((crew: CrewMember) => (
@@ -192,7 +192,7 @@ export default function CrewClock() {
         
         <Alert>
           <MapPin className="h-4 w-4" />
-          <AlertTitle>Location Status</AlertTitle>
+          <AlertTitle>Status Lokasi</AlertTitle>
           {getStatus()}
         </Alert>
 
@@ -201,22 +201,22 @@ export default function CrewClock() {
             {capturedImage ? (
               <div className="relative">
                 <Image src={capturedImage} alt="Selfie" width={400} height={300} className="rounded-lg mx-auto" />
-                <Button onClick={() => setCapturedImage(null)} variant="outline" size="sm" className="mt-2">Retake Photo</Button>
+                <Button onClick={() => setCapturedImage(null)} variant="outline" size="sm" className="mt-2">Ambil Ulang Foto</Button>
               </div>
             ) : (
               <div className="space-y-2">
                 <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay playsInline muted />
                 {!hasCameraPermission && hasCameraPermission !== null && (
                    <Alert variant="destructive">
-                     <AlertTitle>Camera Access Required</AlertTitle>
+                     <AlertTitle>Perlu Akses Kamera</AlertTitle>
                      <AlertDescription>
-                       Please allow camera access to use this feature.
+                       Izinkan akses kamera untuk menggunakan fitur ini.
                      </AlertDescription>
                    </Alert>
                 )}
                  <Button onClick={handleCapture} disabled={!hasCameraPermission} size="lg">
                    <Camera className="mr-2" />
-                   Take Selfie
+                   Ambil Selfie
                  </Button>
               </div>
             )}
@@ -236,3 +236,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    
