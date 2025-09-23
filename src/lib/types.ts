@@ -1,0 +1,23 @@
+export interface Store {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface CrewMember {
+  id: string;
+  name: string;
+  storeId: string;
+  address: string;
+}
+
+export interface AttendanceLog {
+  id: string;
+  crewMemberId: string;
+  crewMemberName: string;
+  storeId: string;
+  storeName: string;
+  timestamp: Date;
+  type: 'in' | 'out';
+}
