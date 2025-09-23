@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw } from "lucide-react";
 import { crewMembers, stores, attendanceLogs as initialLogs } from "@/lib/data";
 import type { CrewMember, AttendanceLog } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
@@ -32,7 +32,10 @@ export default function CrewClock() {
   const [distance, setDistance] = useState<number | null>(null);
   const [attendance, setAttendance] = useState<AttendanceLog[]>(initialLogs);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { toast } = useToast();
 
@@ -55,6 +58,7 @@ export default function CrewClock() {
   const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage;
   const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage;
 
+  // Effect for location
   useEffect(() => {
     if (!selectedCrewId) {
       setLocation(null);
@@ -89,13 +93,57 @@ export default function CrewClock() {
           setIsLocating(false);
           setDistance(null);
         },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
       );
     } else {
       setLocationError("Geolocation is not supported by this browser.");
       setIsLocating(false);
     }
   }, [selectedCrewId, assignedStore]);
+
+  // Effect for camera
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+  
+    const getCameraPermission = async () => {
+      if (!selectedCrewId) {
+        setHasCameraPermission(null);
+        return;
+      }
+      if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Kamera Tidak Didukung',
+          description: 'Browser Anda tidak mendukung akses kamera.',
+        });
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Akses Kamera Ditolak',
+          description: 'Mohon izinkan akses kamera di pengaturan browser Anda.',
+        });
+      }
+    };
+  
+    getCameraPermission();
+  
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [selectedCrewId, toast]);
 
   const handleClockAction = (type: 'in' | 'out') => {
     if (!selectedCrewMember || !assignedStore) return;
@@ -116,23 +164,37 @@ export default function CrewClock() {
       description: `${selectedCrewMember.name} at ${assignedStore.name}`,
       variant: "default",
     });
-    setCapturedImage(null); // Reset image after clocking action
+    setCapturedImage(null);
   };
 
-  const handleTakePhotoClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleTakePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      context?.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+      const dataUrl = canvas.toDataURL('image/png');
+      setCapturedImage(dataUrl);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setCapturedImage(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Stop the camera stream
+      const stream = video.srcObject as MediaStream;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
     }
   };
+
+  const handleRetakePhoto = () => {
+    setCapturedImage(null);
+    // The camera permission useEffect will re-run and start the stream again
+    // We just need to re-trigger the selectedCrewId dependency
+    const currentId = selectedCrewId;
+    setSelectedCrewId(null);
+    setTimeout(() => setSelectedCrewId(currentId), 0);
+  };
+
 
   const getStatus = () => {
     if (!selectedCrewId) return <AlertDescription>Silakan pilih nama Anda untuk memulai.</AlertDescription>;
@@ -173,24 +235,36 @@ export default function CrewClock() {
 
         {selectedCrewId && (
           <div className="space-y-4 text-center">
+            <canvas ref={canvasRef} className="hidden" />
+
             {capturedImage ? (
               <div className="relative">
                 <img src={capturedImage} alt="Selfie" className="rounded-lg mx-auto max-w-full h-auto" />
-                <Button onClick={() => setCapturedImage(null)} variant="outline" size="sm" className="mt-2">Ambil Ulang Foto</Button>
+                <Button onClick={handleRetakePhoto} variant="outline" size="sm" className="mt-2">
+                  <RefreshCcw className="mr-2" />
+                  Ambil Ulang
+                </Button>
               </div>
             ) : (
-              <div className="space-y-2">
-                 <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleFileChange}
-                  ref={fileInputRef}
-                  className="hidden"
-                />
-                 <Button onClick={handleTakePhotoClick} size="lg">
+              <div className="space-y-4">
+                <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
+                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                  {hasCameraPermission === false && (
+                     <Alert variant="destructive" className="m-4">
+                       <Camera className="h-4 w-4" />
+                       <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
+                       <AlertDescription>
+                         Izinkan akses kamera di browser Anda untuk melanjutkan.
+                       </AlertDescription>
+                     </Alert>
+                  )}
+                   {hasCameraPermission === null && selectedCrewId && (
+                     <Loader className="animate-spin" />
+                   )}
+                </div>
+                 <Button onClick={handleTakePhoto} size="lg" disabled={hasCameraPermission !== true}>
                    <Camera className="mr-2" />
-                   Ambil Selfie
+                   Ambil Foto
                  </Button>
               </div>
             )}
@@ -209,3 +283,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    
