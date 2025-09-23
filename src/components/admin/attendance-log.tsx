@@ -23,7 +23,7 @@ import type { AttendanceLog } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
-import type { DateRange } from 'react-day-picker';
+import { DateRange } from 'react-day-picker';
 
 type FilterType = 'day' | 'week' | 'month';
 
@@ -88,8 +88,17 @@ export default function AttendanceLog() {
     return () => unsubscribe();
   }, [date, filter]);
   
-  const handleDateSelect = (selectedDate: Date | undefined) => {
-    setDate(selectedDate);
+  const handleDateSelect = (selected: Date | DateRange | undefined) => {
+    if (selected) {
+      if (selected instanceof Date) {
+        setDate(selected);
+      } else if (selected.from) {
+        // For range, just use the start date to drive the state
+        setDate(selected.from);
+      }
+    } else {
+      setDate(undefined);
+    }
   }
 
   const getDateDisplay = () => {
@@ -142,7 +151,7 @@ export default function AttendanceLog() {
             <Calendar
               mode={filter === 'day' ? 'single' : 'range'}
               selected={filter === 'day' ? date : selectedRange}
-              onSelect={handleDateSelect}
+              onSelect={handleDateSelect as any}
               initialFocus
             />
           </PopoverContent>
