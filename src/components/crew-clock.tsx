@@ -89,7 +89,7 @@ export default function CrewClock() {
           setIsLocating(false);
           setDistance(null);
         },
-        { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } else {
       setLocationError("Geolocation is not supported by this browser.");
@@ -175,7 +175,7 @@ export default function CrewClock() {
           <div className="space-y-4 text-center">
             {capturedImage ? (
               <div className="relative">
-                <img src={capturedImage} alt="Selfie" width={400} height={300} className="rounded-lg mx-auto" />
+                <img src={capturedImage} alt="Selfie" className="rounded-lg mx-auto max-w-full h-auto" />
                 <Button onClick={() => setCapturedImage(null)} variant="outline" size="sm" className="mt-2">Ambil Ulang Foto</Button>
               </div>
             ) : (
@@ -183,7 +183,7 @@ export default function CrewClock() {
                  <input
                   type="file"
                   accept="image/*"
-                  capture="user"
+                  capture="environment"
                   onChange={handleFileChange}
                   ref={fileInputRef}
                   className="hidden"
