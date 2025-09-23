@@ -26,9 +26,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
-import { db, storage } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
 
 
 export default function CrewClock() {
@@ -201,12 +200,6 @@ export default function CrewClock() {
     setIsProcessing(true);
 
     try {
-      // 1. Upload image to Firebase Storage
-      const storageRef = ref(storage, `attendance/${selectedCrewMember.id}-${new Date().toISOString()}.png`);
-      const uploadResult = await uploadString(storageRef, capturedImage, 'data_url');
-      const photoURL = await getDownloadURL(uploadResult.ref);
-
-      // 2. Add attendance record to Firestore with the image URL
       await addDoc(collection(db, 'attendance'), {
         crewMemberId: selectedCrewMember.id,
         crewMemberName: selectedCrewMember.name,
@@ -214,7 +207,7 @@ export default function CrewClock() {
         storeName: assignedStore.name,
         timestamp: new Date(),
         type,
-        photoURL: photoURL,
+        photoURL: capturedImage, // Save the data URL directly
       });
 
       toast({
@@ -225,7 +218,7 @@ export default function CrewClock() {
       setCapturedImage(null);
     } catch (e) {
       console.error("Error during clock action: ", e);
-      toast({ variant: "destructive", title: "Error", description: "Could not record attendance. Check storage rules." });
+      toast({ variant: "destructive", title: "Error", description: "Could not record attendance. Check Firestore rules." });
     } finally {
       setIsProcessing(false);
     }
