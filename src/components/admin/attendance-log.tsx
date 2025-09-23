@@ -22,29 +22,25 @@ import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'fireba
 import type { AttendanceLog } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isValid } from "date-fns";
+import { format, addDays } from "date-fns";
 import { DateRange } from 'react-day-picker';
-
-type FilterType = 'day' | 'week' | 'month';
 
 export default function AttendanceLog() {
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
-  const [date, setDate] = useState<Date | undefined>(new Date());
-  const [filter, setFilter] = useState<FilterType>('day');
-
-  const selectedRange: DateRange | undefined = date && isValid(date)
-    ? {
-        from: filter === 'week' ? startOfWeek(date) : (filter === 'month' ? startOfMonth(date) : startOfDay(date)),
-        to: filter === 'week' ? endOfWeek(date) : (filter === 'month' ? endOfMonth(date) : endOfDay(date))
-      }
-    : undefined;
-
+  const [date, setDate] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: new Date(),
+  });
 
   useEffect(() => {
-    if (!selectedRange?.from || !selectedRange?.to) return;
+    if (!date?.from || !date?.to) return;
     
-    const startTimestamp = Timestamp.fromDate(selectedRange.from);
-    const endTimestamp = Timestamp.fromDate(selectedRange.to);
+    // Adjust 'to' date to include the entire day
+    const startOfDayFrom = new Date(date.from.setHours(0, 0, 0, 0));
+    const endOfDayTo = new Date(date.to.setHours(23, 59, 59, 999));
+
+    const startTimestamp = Timestamp.fromDate(startOfDayFrom);
+    const endTimestamp = Timestamp.fromDate(endOfDayTo);
 
     const q = query(
       collection(db, 'attendance'), 
@@ -67,66 +63,44 @@ export default function AttendanceLog() {
     });
 
     return () => unsubscribe();
-  }, [selectedRange]);
-  
-  const handleDateSelect = (selected: Date | undefined) => {
-    setDate(selected);
-  }
-
-  const getDateDisplay = () => {
-    if (!date || !isValid(date)) return <span>Pick a date</span>;
-
-    if (filter === 'day') {
-      return format(date, "PPP");
-    }
-
-    if (filter === 'week') {
-      const start = startOfWeek(date);
-      const end = endOfWeek(date);
-      if (format(start, 'y') !== format(end, 'y')) {
-        return `${format(start, "MMM d, yyyy")} - ${format(end, "MMM d, yyyy")}`;
-      }
-      if (format(start, 'M') !== format(end, 'M')) {
-         return `${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
-      }
-      return `${format(start, "MMM d")} - ${format(end, "d, yyyy")}`;
-    }
-
-    if (filter === 'month') {
-      return format(date, "MMMM yyyy");
-    }
-  }
-
+  }, [date]);
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <Button variant={filter === 'day' ? 'default' : 'outline'} onClick={() => setFilter('day')}>Day</Button>
-          <Button variant={filter === 'week' ? 'default' : 'outline'} onClick={() => setFilter('week')}>Week</Button>
-          <Button variant={filter === 'month' ? 'default' : 'outline'} onClick={() => setFilter('month')}>Month</Button>
-        </div>
+      <div className="flex items-center gap-4 mb-4">
         <Popover>
           <PopoverTrigger asChild>
             <Button
+              id="date"
               variant={"outline"}
               className={cn(
-                "w-auto min-w-[280px] justify-start text-left font-normal",
+                "w-[300px] justify-start text-left font-normal",
                 !date && "text-muted-foreground"
               )}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {getDateDisplay()}
+              {date?.from ? (
+                date.to ? (
+                  <>
+                    {format(date.from, "LLL dd, y")} -{" "}
+                    {format(date.to, "LLL dd, y")}
+                  </>
+                ) : (
+                  format(date.from, "LLL dd, y")
+                )
+              ) : (
+                <span>Pick a date</span>
+              )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0">
+          <PopoverContent className="w-auto p-0" align="start">
             <Calendar
-              mode="single"
-              selected={date}
-              onSelect={handleDateSelect}
               initialFocus
-              modifiers={{ range: selectedRange || {} }}
-              modifiersClassNames={{ range: "rdp-day_range" }}
+              mode="range"
+              defaultMonth={date?.from}
+              selected={date}
+              onSelect={setDate}
+              numberOfMonths={2}
             />
           </PopoverContent>
         </Popover>
