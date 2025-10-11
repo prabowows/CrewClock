@@ -89,24 +89,15 @@ export default function AttendanceLog() {
     const startTimestamp = Timestamp.fromDate(startOfDayFrom);
     const endTimestamp = Timestamp.fromDate(endOfDayTo);
 
-    const queryConstraints: QueryConstraint[] = [
-        where('timestamp', '>=', startTimestamp),
-        where('timestamp', '<=', endTimestamp),
-    ];
-
-    if (selectedStoreId !== 'all') {
-        queryConstraints.push(where('storeId', '==', selectedStoreId));
-    }
-    
-    queryConstraints.push(orderBy('timestamp', 'desc'));
-
     const q = query(
       collection(db, 'attendance'), 
-      ...queryConstraints
+      where('timestamp', '>=', startTimestamp),
+      where('timestamp', '<=', endTimestamp),
+      orderBy('timestamp', 'desc')
     );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const logsData: AttendanceLog[] = [];
+      let logsData: AttendanceLog[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         logsData.push({
@@ -115,6 +106,11 @@ export default function AttendanceLog() {
           timestamp: (data.timestamp as Timestamp).toDate(),
         } as AttendanceLog);
       });
+
+      if (selectedStoreId !== 'all') {
+        logsData = logsData.filter(log => log.storeId === selectedStoreId);
+      }
+
       setLogs(logsData);
     });
 
