@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import {
   Table,
@@ -37,9 +37,19 @@ import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, where, Timestamp, QueryConstraint } from 'firebase/firestore';
 import type { AttendanceLog, Store } from '@/lib/types';
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Camera } from "lucide-react";
+import { CalendarIcon, Camera, Users } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+
+type AttendanceSummary = {
+  crewMemberId: string;
+  crewMemberName: string;
+  storeName: string;
+  clockInCount: number;
+  logs: AttendanceLog[];
+};
+
 
 export default function AttendanceLog() {
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
@@ -52,6 +62,7 @@ export default function AttendanceLog() {
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>(date);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLog | null>(null);
+  const [selectedSummary, setSelectedSummary] = useState<AttendanceSummary | null>(null);
 
 
   useEffect(() => {
@@ -110,6 +121,31 @@ export default function AttendanceLog() {
     return () => unsubscribe();
   }, [date, selectedStoreId]);
 
+  const attendanceSummary: AttendanceSummary[] = useMemo(() => {
+    const summary: Record<string, AttendanceSummary> = {};
+
+    logs.forEach(log => {
+        if (!summary[log.crewMemberId]) {
+            summary[log.crewMemberId] = {
+                crewMemberId: log.crewMemberId,
+                crewMemberName: log.crewMemberName,
+                storeName: log.storeName,
+                clockInCount: 0,
+                logs: []
+            };
+        }
+        if (log.type === 'in') {
+            summary[log.crewMemberId].clockInCount++;
+        }
+        summary[log.crewMemberId].logs.push(log);
+    });
+    // Sort logs for each crew member by timestamp descending
+    Object.values(summary).forEach(s => s.logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()));
+    
+    return Object.values(summary).sort((a,b) => a.crewMemberName.localeCompare(b.crewMemberName));
+  }, [logs]);
+
+
   const handleApplyDateRange = () => {
     setDate(selectedDateRange);
     setIsPopoverOpen(false);
@@ -121,7 +157,7 @@ export default function AttendanceLog() {
   }
 
   return (
-    <div>
+    <div className='space-y-6'>
       <div className="flex items-center gap-4 mb-4">
         <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
           <PopoverTrigger asChild>
@@ -175,52 +211,135 @@ export default function AttendanceLog() {
             </SelectContent>
         </Select>
       </div>
+
+      <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedSummary(null)}>
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center"><Users className="mr-3"/>Ringkasan Kehadiran</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="border rounded-lg">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Crew Member</TableHead>
+                                <TableHead>Store</TableHead>
+                                <TableHead>Total Clock In</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {attendanceSummary.length > 0 ? attendanceSummary.map((summary) => (
+                                <TableRow key={summary.crewMemberId}>
+                                    <TableCell className='font-medium'>{summary.crewMemberName}</TableCell>
+                                    <TableCell>{summary.storeName}</TableCell>
+                                    <TableCell>{summary.clockInCount} kali</TableCell>
+                                    <TableCell className='text-right'>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" size="sm" onClick={() => setSelectedSummary(summary)}>
+                                                Lihat Detail
+                                            </Button>
+                                        </DialogTrigger>
+                                    </TableCell>
+                                </TableRow>
+                            )) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                        Tidak ada ringkasan untuk periode ini.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+        {selectedSummary && (
+             <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Detail Kehadiran: {selectedSummary.crewMemberName}</DialogTitle>
+                    <DialogDescription>
+                       {selectedSummary.storeName}
+                       {' - '}
+                        {date?.from && format(date.from, "LLL dd, y")}
+                        {date?.to && date.from?.getTime() !== date.to?.getTime() ? ` s/d ${format(date.to, "LLL dd, y")}` : ''}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="mt-4 max-h-[60vh] overflow-y-auto">
+                   <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Waktu</TableHead>
+                                <TableHead className='text-right'>Tindakan</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {selectedSummary.logs.map(log => (
+                                <TableRow key={log.id}>
+                                    <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                                    <TableCell className='text-right'>
+                                       <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
+                                         {log.type === "in" ? "Clock In" : "Clock Out"}
+                                       </Badge>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                   </Table>
+                </div>
+            </DialogContent>
+        )}
+      </Dialog>
+      
       <Dialog>
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Photo</TableHead>
-                <TableHead>Crew Member</TableHead>
-                <TableHead>Store</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.length > 0 ? logs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    {log.photoURL ? (
-                      <DialogTrigger asChild onClick={() => setSelectedLogForImage(log)}>
-                        <button className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer">
-                          <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
-                        </button>
-                      </DialogTrigger>
-                    ) : (
-                      <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center">
-                        <Camera className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium">{log.crewMemberName}</TableCell>
-                  <TableCell>{log.storeName}</TableCell>
-                  <TableCell>{log.timestamp.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
-                      {log.type === "in" ? "Clock In" : "Clock Out"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              )) : (
+        <div>
+          <h3 className="text-xl font-semibold mb-4 text-primary">Log Lengkap</h3>
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    No attendance records found for this period.
-                  </TableCell>
+                  <TableHead>Photo</TableHead>
+                  <TableHead>Crew Member</TableHead>
+                  <TableHead>Store</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {logs.length > 0 ? logs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell>
+                      {log.photoURL ? (
+                        <DialogTrigger asChild onClick={() => setSelectedLogForImage(log)}>
+                          <button className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer">
+                            <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
+                          </button>
+                        </DialogTrigger>
+                      ) : (
+                        <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center">
+                          <Camera className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">{log.crewMemberName}</TableCell>
+                    <TableCell>{log.storeName}</TableCell>
+                    <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
+                        {log.type === "in" ? "Clock In" : "Clock Out"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      No attendance records found for this period.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
         {selectedLogForImage && (
             <DialogContent className="sm:max-w-md">
