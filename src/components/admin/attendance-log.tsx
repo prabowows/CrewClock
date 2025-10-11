@@ -34,10 +34,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, where, Timestamp, QueryConstraint } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import type { AttendanceLog, Store } from '@/lib/types';
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Camera, Users } from "lucide-react";
+import { CalendarIcon, Camera, Users, Loader } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -63,6 +63,7 @@ export default function AttendanceLog() {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLog | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<AttendanceSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export default function AttendanceLog() {
   useEffect(() => {
     if (!date?.from) return;
     
+    setIsLoading(true);
     const fromDate = date.from;
     const toDate = date.to || date.from;
 
@@ -112,6 +114,7 @@ export default function AttendanceLog() {
       }
 
       setLogs(logsData);
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
@@ -151,6 +154,12 @@ export default function AttendanceLog() {
     setSelectedDateRange(date); // Revert to the last applied date range
     setIsPopoverOpen(false);
   }
+
+  const LoadingOverlay = () => (
+    <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
+        <Loader className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
 
   return (
     <div className='space-y-6'>
@@ -195,7 +204,7 @@ export default function AttendanceLog() {
             </div>
           </PopoverContent>
         </Popover>
-        <Select value={selectedStoreId} onValueChange={setSelectedStoreId}>
+        <Select value={selectedStoreId} onValueChange={setSelectedStoreId} disabled={isLoading}>
             <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Select a store" />
             </SelectTrigger>
@@ -209,7 +218,8 @@ export default function AttendanceLog() {
       </div>
 
       <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedSummary(null)}>
-        <Card>
+        <Card className='relative'>
+            {isLoading && <LoadingOverlay />}
             <CardHeader>
                 <CardTitle className="flex items-center"><Users className="mr-3"/>Ringkasan Kehadiran</CardTitle>
             </CardHeader>
@@ -288,7 +298,8 @@ export default function AttendanceLog() {
       </Dialog>
       
       <Dialog>
-        <div>
+        <div className='relative'>
+            {isLoading && <LoadingOverlay />}
           <h3 className="text-xl font-semibold mb-4 text-primary">Log Lengkap</h3>
           <div className="border rounded-lg">
             <Table>
@@ -354,3 +365,5 @@ export default function AttendanceLog() {
     </div>
   );
 }
+
+    
