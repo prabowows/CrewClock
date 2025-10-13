@@ -359,8 +359,9 @@ export default function CrewClock() {
                                                   href={message.attachmentURL}
                                                   target="_blank"
                                                   rel="noopener noreferrer"
-                                                  className="text-primary hover:underline text-sm mt-2 inline-block"
+                                                  className="text-primary hover:underline text-sm mt-2 inline-flex items-center gap-1"
                                                 >
+                                                  <Link2 className="h-3 w-3" />
                                                   Lampiran
                                                 </a>
                                               )}
