@@ -10,9 +10,20 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
-import { collection, addDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { Store } from '@/lib/types';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const storeSchema = z.object({
   name: z.string().min(2, "Store name must be at least 2 characters."),
@@ -22,6 +33,7 @@ const storeSchema = z.object({
 
 export default function StoreManagement() {
   const [stores, setStores] = useState<Store[]>([]);
+  const [editingStore, setEditingStore] = useState<Store | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -40,21 +52,75 @@ export default function StoreManagement() {
     },
   });
 
+  useEffect(() => {
+    if (editingStore) {
+      form.reset({
+        name: editingStore.name,
+        latitude: editingStore.latitude,
+        longitude: editingStore.longitude,
+      });
+    } else {
+      form.reset({
+        name: "",
+        latitude: "" as any,
+        longitude: "" as any,
+      });
+    }
+  }, [editingStore, form]);
+
   async function onSubmit(values: z.infer<typeof storeSchema>) {
     try {
-      await addDoc(collection(db, 'stores'), values);
-      toast({ title: "Store Added", description: `${values.name} has been successfully added.` });
+      if (editingStore) {
+        const storeRef = doc(db, 'stores', editingStore.id);
+        await updateDoc(storeRef, values);
+        toast({ title: "Store Updated", description: `${values.name} has been successfully updated.` });
+        setEditingStore(null);
+      } else {
+        await addDoc(collection(db, 'stores'), values);
+        toast({ title: "Store Added", description: `${values.name} has been successfully added.` });
+      }
       form.reset();
     } catch (e) {
-      console.error("Error adding document: ", e);
-      toast({ variant: "destructive", title: "Error", description: "Could not add store." });
+      console.error("Error saving document: ", e);
+      toast({ variant: "destructive", title: "Error", description: "Could not save store." });
     }
+  }
+
+  const handleDelete = async (storeId: string) => {
+    try {
+        await deleteDoc(doc(db, "stores", storeId));
+        toast({
+            title: "Store Deleted",
+            description: "The store has been successfully deleted.",
+            variant: "destructive"
+        });
+    } catch (error) {
+        console.error("Error deleting store: ", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not delete store."
+        });
+    }
+  };
+
+  const handleEdit = (store: Store) => {
+    setEditingStore(store);
+  }
+  
+  const handleCancelEdit = () => {
+    setEditingStore(null);
+    form.reset({
+      name: "",
+      latitude: "" as any,
+      longitude: "" as any,
+    });
   }
 
   return (
     <div className="grid md:grid-cols-2 gap-8">
       <div>
-        <h3 className="text-lg font-semibold mb-4 text-primary">Add New Store</h3>
+        <h3 className="text-lg font-semibold mb-4 text-primary">{editingStore ? "Edit Store" : "Add New Store"}</h3>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -98,7 +164,15 @@ export default function StoreManagement() {
                 )}
               />
             </div>
-            <Button type="submit"><PlusCircle className="mr-2" /> Add Store</Button>
+            <div className="flex gap-2">
+                <Button type="submit">
+                    {editingStore ? <Edit className="mr-2" /> : <PlusCircle className="mr-2" />} 
+                    {editingStore ? "Update Store" : "Add Store"}
+                </Button>
+                {editingStore && (
+                    <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                )}
+            </div>
           </form>
         </Form>
       </div>
@@ -110,6 +184,7 @@ export default function StoreManagement() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Coordinates</TableHead>
+                <TableHead className='text-right'>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -117,6 +192,30 @@ export default function StoreManagement() {
                 <TableRow key={store.id}>
                   <TableCell className="font-medium">{store.name}</TableCell>
                   <TableCell>{store.latitude}, {store.longitude}</TableCell>
+                  <TableCell className='text-right space-x-2'>
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(store)}>
+                        <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className='text-destructive hover:text-destructive'>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the store "{store.name}" from the database.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(store.id)} className='bg-destructive hover:bg-destructive/90'>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
