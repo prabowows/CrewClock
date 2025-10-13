@@ -299,7 +299,7 @@ export default function CrewClock() {
   return (
     <Card className="w-full max-w-md shadow-2xl">
       <CardHeader>
-        <CardTitle className="text-3xl font-bold text-center text-primary">CrewClock</CardTitle>
+        <CardTitle className="text-3xl font-bold text-center text-primary">FruitHub</CardTitle>
         <CardDescription className="text-center">
           Pilih nama Anda dan lakukan clock in atau out.
         </CardDescription>
