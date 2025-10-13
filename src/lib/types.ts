@@ -27,4 +27,5 @@ export interface BroadcastMessage {
   id: string;
   message: string;
   timestamp: Date;
+  attachmentURL?: string;
 }

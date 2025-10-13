@@ -7,12 +7,13 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
 import { collection, addDoc, onSnapshot, orderBy, query, deleteDoc, doc, Timestamp } from 'firebase/firestore';
-import { Send, Trash2 } from 'lucide-react';
+import { Send, Trash2, Link2 } from 'lucide-react';
 import type { BroadcastMessage as BroadcastMessageType } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -30,6 +31,7 @@ import { Card, CardContent } from '../ui/card';
 
 const broadcastSchema = z.object({
   message: z.string().min(10, "Message must be at least 10 characters.").max(500, "Message cannot exceed 500 characters."),
+  attachmentURL: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
 });
 
 export default function BroadcastMessage() {
@@ -56,15 +58,22 @@ export default function BroadcastMessage() {
     resolver: zodResolver(broadcastSchema),
     defaultValues: {
       message: "",
+      attachmentURL: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof broadcastSchema>) {
     try {
-      await addDoc(collection(db, 'broadcasts'), {
+      const docData: { message: string; timestamp: Date; attachmentURL?: string } = {
         message: values.message,
         timestamp: new Date(),
-      });
+      };
+
+      if (values.attachmentURL) {
+        docData.attachmentURL = values.attachmentURL;
+      }
+
+      await addDoc(collection(db, 'broadcasts'), docData);
       toast({
         title: "Broadcast Sent!",
         description: "Your message has been sent to all crew members.",
@@ -117,6 +126,23 @@ export default function BroadcastMessage() {
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="attachmentURL"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Attachment Link (Optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="https://example.com/document.pdf"
+                      className="text-base"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <Button type="submit" size="lg" className="w-full">
               <Send className="mr-2 h-5 w-5" /> Send Broadcast
             </Button>
@@ -139,7 +165,20 @@ export default function BroadcastMessage() {
                     <TableBody>
                         {broadcasts.length > 0 ? broadcasts.map((msg) => (
                             <TableRow key={msg.id}>
-                                <TableCell className='whitespace-pre-wrap break-words'>{msg.message}</TableCell>
+                                <TableCell className='whitespace-pre-wrap break-words'>
+                                  {msg.message}
+                                  {msg.attachmentURL && (
+                                    <a
+                                      href={msg.attachmentURL}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover:underline flex items-center gap-1 mt-2"
+                                    >
+                                      <Link2 className="h-4 w-4" />
+                                      View Attachment
+                                    </a>
+                                  )}
+                                </TableCell>
                                 <TableCell className='text-muted-foreground'>
                                     {formatDistanceToNow(msg.timestamp, { addSuffix: true })}
                                 </TableCell>

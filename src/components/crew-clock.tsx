@@ -20,7 +20,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, ChevronsUpDown, Check } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, ChevronsUpDown, Check, ExternalLink } from "lucide-react";
 import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
@@ -53,7 +53,7 @@ export default function CrewClock() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const autoplay = useRef(
-    Autoplay({ delay: 3000, stopOnInteraction: true })
+    Autoplay({ delay: 5000, stopOnInteraction: true })
   );
 
   const { toast } = useToast();
@@ -244,6 +244,7 @@ export default function CrewClock() {
       setCapturedImage(null);
       setSelectedCrewId(null);
       setSelectedShift(null);
+      setComboboxValue("");
 
     } catch (e) {
       console.error('Error during clock action: ', e);
@@ -296,7 +297,8 @@ export default function CrewClock() {
     setCapturedImage(null);
     setSelectedShift(null);
     setIsComboboxOpen(false);
-    setComboboxValue("");
+    const selectedName = crewMembers.find(c => c.id === crewId)?.name || "";
+    setComboboxValue(selectedName);
   }
 
 
@@ -310,12 +312,14 @@ export default function CrewClock() {
   }
 
   const filteredCrew = useMemo(() => {
-    if (!comboboxValue) return [];
     const lowercasedValue = comboboxValue.toLowerCase();
+    const selectedName = crewMembers.find(c => c.id === selectedCrewId)?.name || '';
+    if (!comboboxValue || lowercasedValue === selectedName.toLowerCase()) return [];
+    
     return crewMembers.filter(crew =>
       crew.name.toLowerCase().includes(lowercasedValue)
     );
-  }, [comboboxValue, crewMembers]);
+  }, [comboboxValue, crewMembers, selectedCrewId]);
 
   return (
     <Card className="w-full max-w-md shadow-2xl">
@@ -349,7 +353,15 @@ export default function CrewClock() {
                                       <Card>
                                           <CardContent className="flex flex-col p-4 space-y-2">
                                               <p className="text-sm text-foreground/90">{message.message}</p>
-                                              <p className="text-xs text-right text-muted-foreground">
+                                              {message.attachmentURL && (
+                                                <Button variant="outline" size="sm" asChild className="mt-2">
+                                                  <a href={message.attachmentURL} target="_blank" rel="noopener noreferrer">
+                                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                                    Lihat Lampiran
+                                                  </a>
+                                                </Button>
+                                              )}
+                                              <p className="text-xs text-right text-muted-foreground pt-2">
                                                   {formatDistanceToNow(message.timestamp, { addSuffix: true })}
                                               </p>
                                           </CardContent>
@@ -385,12 +397,16 @@ export default function CrewClock() {
                 <CommandInput 
                   placeholder="Cari nama kru..." 
                   value={comboboxValue}
-                  onValueChange={setComboboxValue}
+                  onValueChange={(value) => {
+                      setComboboxValue(value);
+                      if(selectedCrewId && value !== (crewMembers.find(c => c.id === selectedCrewId)?.name || '')) {
+                          setSelectedCrewId(null);
+                      }
+                  }}
                 />
                 <CommandList>
-                  {comboboxValue && filteredCrew.length === 0 && (
-                    <CommandEmpty>Nama kru tidak ditemukan.</CommandEmpty>
-                  )}
+                  {!comboboxValue && <CommandEmpty>Ketik nama Anda untuk mencari.</CommandEmpty>}
+                  {comboboxValue && filteredCrew.length === 0 && <CommandEmpty>Nama kru tidak ditemukan.</CommandEmpty>}
                   <CommandGroup>
                     {filteredCrew.map((crew) => (
                       <CommandItem
