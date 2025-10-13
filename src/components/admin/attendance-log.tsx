@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Table,
   TableBody,
@@ -29,6 +32,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Popover,
   PopoverContent,
@@ -38,10 +44,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, where, Timestamp, doc, updateDoc } from 'firebase/firestore';
-import type { AttendanceLog, Store } from '@/lib/types';
+import { collection, onSnapshot, query, orderBy, where, Timestamp, doc, updateDoc, addDoc } from 'firebase/firestore';
+import type { AttendanceLog, Store, CrewMember } from '@/lib/types';
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Camera, Users, Loader, Edit } from "lucide-react";
+import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -54,10 +60,20 @@ type AttendanceSummary = {
   logs: AttendanceLog[];
 };
 
+const manualEntrySchema = z.object({
+  crewMemberId: z.string().min(1, "Please select a crew member."),
+  date: z.date({ required_error: "Please select a date." }),
+  time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)."),
+  type: z.enum(['in', 'out'], { required_error: "Please select a type." }),
+  shift: z.string().min(1, "Please select a shift."),
+  notes: z.string().optional(),
+});
+
 
 export default function AttendanceLog() {
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('all');
   const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(),
@@ -70,8 +86,18 @@ export default function AttendanceLog() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLogForNotes, setSelectedLogForNotes] = useState<AttendanceLog | null>(null);
   const [noteInput, setNoteInput] = useState("");
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const { toast } = useToast();
 
+  const form = useForm<z.infer<typeof manualEntrySchema>>({
+    resolver: zodResolver(manualEntrySchema),
+    defaultValues: {
+      crewMemberId: "",
+      time: format(new Date(), "HH:mm"),
+      shift: "",
+      notes: "",
+    },
+  });
 
   useEffect(() => {
     const unsubStores = onSnapshot(collection(db, 'stores'), (snapshot) => {
@@ -82,7 +108,18 @@ export default function AttendanceLog() {
       setStores(storesData);
     });
 
-    return () => unsubStores();
+    const unsubCrew = onSnapshot(collection(db, 'crew'), (snapshot) => {
+        const crewData: CrewMember[] = [];
+        snapshot.forEach((doc) => {
+            crewData.push({ id: doc.id, ...doc.data() } as CrewMember);
+        });
+        setCrewMembers(crewData);
+    });
+
+    return () => {
+      unsubStores();
+      unsubCrew();
+    };
   }, []);
   
   useEffect(() => {
@@ -122,10 +159,18 @@ export default function AttendanceLog() {
 
       setLogs(logsData);
       setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching attendance logs:", error);
+      setIsLoading(false);
+      toast({
+        variant: "destructive",
+        title: "Error Memuat Log",
+        description: "Gagal memuat data kehadiran. Mungkin memerlukan pembuatan indeks di Firestore.",
+      })
     });
 
     return () => unsubscribe();
-  }, [date, selectedStoreId]);
+  }, [date, selectedStoreId, toast]);
 
   const attendanceSummary: AttendanceSummary[] = useMemo(() => {
     const summary: Record<string, AttendanceSummary> = {};
@@ -189,6 +234,49 @@ export default function AttendanceLog() {
     }
   };
 
+  async function onManualEntrySubmit(values: z.infer<typeof manualEntrySchema>) {
+    const selectedCrew = crewMembers.find(c => c.id === values.crewMemberId);
+    const assignedStore = stores.find(s => s.id === selectedCrew?.storeId);
+
+    if (!selectedCrew || !assignedStore) {
+        toast({ variant: "destructive", title: "Error", description: "Invalid crew or store." });
+        return;
+    }
+
+    const [hours, minutes] = values.time.split(':').map(Number);
+    const finalTimestamp = new Date(values.date);
+    finalTimestamp.setHours(hours, minutes);
+
+    try {
+        await addDoc(collection(db, 'attendance'), {
+            crewMemberId: selectedCrew.id,
+            crewMemberName: selectedCrew.name,
+            storeId: assignedStore.id,
+            storeName: assignedStore.name,
+            timestamp: Timestamp.fromDate(finalTimestamp),
+            type: values.type,
+            shift: values.shift,
+            notes: `Manual Entry. ${values.notes || ''}`.trim(),
+            photoURL: '', // No photo for manual entry
+        });
+        toast({
+            title: "Entri Manual Berhasil",
+            description: `Log absensi untuk ${selectedCrew.name} telah ditambahkan.`,
+        });
+        setIsManualEntryOpen(false);
+        form.reset({
+            crewMemberId: "",
+            time: format(new Date(), "HH:mm"),
+            shift: "",
+            notes: "",
+        });
+    } catch (error) {
+        console.error("Error adding manual entry:", error);
+        toast({ variant: "destructive", title: "Error", description: "Gagal menyimpan entri manual." });
+    }
+  }
+
+
   const LoadingOverlay = () => (
     <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
         <Loader className="h-8 w-8 animate-spin text-primary" />
@@ -196,7 +284,7 @@ export default function AttendanceLog() {
   );
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-6 relative'>
       <div className="flex items-center gap-4 mb-4">
         <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
           <PopoverTrigger asChild>
@@ -383,7 +471,7 @@ export default function AttendanceLog() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center">
-                      No attendance records found for this period.
+                      Tidak ada catatan kehadiran untuk periode ini.
                     </TableCell>
                   </TableRow>
                 )}
@@ -392,7 +480,6 @@ export default function AttendanceLog() {
           </div>
         </div>
 
-        {/* Dialog for adding/editing notes */}
         {selectedLogForNotes && (
           <DialogContent>
             <DialogHeader>
@@ -419,9 +506,8 @@ export default function AttendanceLog() {
           </DialogContent>
         )}
       </Dialog>
-      
+
       <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
-        {/* This DialogTrigger is now virtual, the image button triggers it */}
         <DialogTrigger asChild>
           <button className="hidden" />
         </DialogTrigger>
@@ -438,6 +524,164 @@ export default function AttendanceLog() {
                 </div>
             </DialogContent>
         )}
+      </Dialog>
+      
+      <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+        <DialogTrigger asChild>
+            <Button
+                className="fixed bottom-16 right-8 h-16 w-16 rounded-full shadow-lg"
+            >
+                <Plus className="h-8 w-8" />
+                <span className="sr-only">Add Manual Entry</span>
+            </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+                <DialogTitle>Entri Kehadiran Manual</DialogTitle>
+                <DialogDescription>
+                    Masukkan detail kehadiran untuk kru yang tidak dapat clock-in/out.
+                </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onManualEntrySubmit)} className="space-y-4 pt-4">
+                    <FormField
+                        control={form.control}
+                        name="crewMemberId"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Crew Member</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Pilih seorang kru" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {crewMembers.map(crew => (
+                                            <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="date"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                    <FormLabel>Tanggal</FormLabel>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <FormControl>
+                                                <Button
+                                                    variant={"outline"}
+                                                    className={cn(
+                                                        "pl-3 text-left font-normal",
+                                                        !field.value && "text-muted-foreground"
+                                                    )}
+                                                >
+                                                    {field.value ? format(field.value, "PPP") : <span>Pilih tanggal</span>}
+                                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                </Button>
+                                            </FormControl>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={field.value}
+                                                onSelect={field.onChange}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="time"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Waktu (HH:MM)</FormLabel>
+                                    <FormControl>
+                                        <Input type="time" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                     <FormField
+                        control={form.control}
+                        name="type"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                                <FormLabel>Tipe</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        className="flex gap-4"
+                                    >
+                                        <FormItem className="flex items-center space-x-2">
+                                            <FormControl><RadioGroupItem value="in" /></FormControl>
+                                            <FormLabel className="font-normal">Clock In</FormLabel>
+                                        </FormItem>
+                                        <FormItem className="flex items-center space-x-2">
+                                            <FormControl><RadioGroupItem value="out" /></FormControl>
+                                            <FormLabel className="font-normal">Clock Out</FormLabel>
+                                        </FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="shift"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Shift</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Pilih shift" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="Shift 1">Shift 1</SelectItem>
+                                        <SelectItem value="Shift 2">Shift 2</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Catatan (Opsional)</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="e.g., Lupa clock in pagi ini" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>Batal</Button>
+                        <Button type="submit">Simpan</Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
       </Dialog>
     </div>
   );
