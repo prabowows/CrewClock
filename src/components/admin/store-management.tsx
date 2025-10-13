@@ -16,8 +16,8 @@ import { PlusCircle } from 'lucide-react';
 
 const storeSchema = z.object({
   name: z.string().min(2, "Store name must be at least 2 characters."),
-  latitude: z.coerce.number().min(-90).max(90, "Latitude must be between -90 and 90."),
-  longitude: z.coerce.number().min(-180).max(180, "Longitude must be between -180 and 180."),
+  latitude: z.coerce.number().min(-90, "Latitude must be between -90 and 90."),
+  longitude: z.coerce.number().min(-180, "Longitude must be between -180 and 180."),
 });
 
 export default function StoreManagement() {
@@ -35,8 +35,8 @@ export default function StoreManagement() {
     resolver: zodResolver(storeSchema),
     defaultValues: {
       name: "",
-      latitude: undefined,
-      longitude: undefined,
+      latitude: "" as any,
+      longitude: "" as any,
     },
   });
 
