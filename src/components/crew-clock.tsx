@@ -155,6 +155,8 @@ export default function CrewClock() {
       return;
     }
   
+    // Firestore query to get the last action for a specific crew member.
+    // This query requires a composite index on (crewMemberId, timestamp).
     const q = query(
       collection(db, 'attendance'),
       where('crewMemberId', '==', selectedCrewId),
@@ -174,6 +176,15 @@ export default function CrewClock() {
       } else {
         setLastAction(null);
       }
+    }, (error) => {
+        // This is the error handler for the snapshot listener.
+        // The index error will be caught here. We can log it, but for now we do nothing to avoid crash
+        console.error("Firestore snapshot error:", error);
+        if (error.code === 'failed-precondition') {
+          // This specific error indicates a missing index.
+          // We can try to recover or inform the user, but for now we'll just reset the action.
+          setLastAction(null);
+        }
     });
   
     return () => unsubscribe();
@@ -319,7 +330,7 @@ export default function CrewClock() {
   return (
     <Card className="w-full max-w-md shadow-2xl">
       <CardHeader>
-        <CardTitle className="text-3xl font-bold text-center text-primary">FruitHub</CardTitle>
+        <CardTitle className="text-3xl font-bold text-center text-primary">CrewClock</CardTitle>
         <CardDescription className="text-center">
           Pilih toko, nama Anda dan lakukan clock in atau out.
         </CardDescription>
@@ -472,3 +483,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    

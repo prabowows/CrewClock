@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "FruitHub",
+  title: "CrewClock",
   description: "An attendance system for store crew.",
 };
 
@@ -27,3 +27,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+    
