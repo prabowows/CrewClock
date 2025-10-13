@@ -11,9 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
-import { collection, addDoc, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { CrewMember, Store } from '@/lib/types';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const crewSchema = z.object({
   name: z.string().min(2, "Crew member name must be at least 2 characters."),
@@ -23,11 +34,13 @@ const crewSchema = z.object({
 export default function CrewManagement() {
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [editingCrew, setEditingCrew] = useState<CrewMember | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
-      setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+      const crewData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember));
+      setCrewMembers(crewData.sort((a, b) => a.name.localeCompare(b.name)));
     });
     const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
       setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
@@ -45,22 +58,69 @@ export default function CrewManagement() {
       storeId: "",
     },
   });
+  
+  useEffect(() => {
+    if (editingCrew) {
+      form.reset({
+        name: editingCrew.name,
+        storeId: editingCrew.storeId,
+      });
+    } else {
+      form.reset({
+        name: "",
+        storeId: "",
+      });
+    }
+  }, [editingCrew, form]);
 
   async function onSubmit(values: z.infer<typeof crewSchema>) {
     try {
-      await addDoc(collection(db, 'crew'), values);
-      toast({ title: "Crew Member Added", description: `${values.name} has been successfully added.` });
-      form.reset();
+      if (editingCrew) {
+        const crewRef = doc(db, 'crew', editingCrew.id);
+        await updateDoc(crewRef, values);
+        toast({ title: "Crew Member Updated", description: `${values.name} has been successfully updated.` });
+        setEditingCrew(null);
+      } else {
+        await addDoc(collection(db, 'crew'), values);
+        toast({ title: "Crew Member Added", description: `${values.name} has been successfully added.` });
+      }
+      form.reset({ name: "", storeId: "" });
     } catch (e) {
-      console.error("Error adding document: ", e);
-      toast({ variant: "destructive", title: "Error", description: "Could not add crew member." });
+      console.error("Error saving document: ", e);
+      toast({ variant: "destructive", title: "Error", description: "Could not save crew member." });
     }
   }
+
+  const handleDelete = async (crewId: string) => {
+    try {
+        await deleteDoc(doc(db, "crew", crewId));
+        toast({
+            title: "Crew Member Deleted",
+            description: "The crew member has been successfully deleted.",
+            variant: "destructive"
+        });
+    } catch (error) {
+        console.error("Error deleting crew member: ", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not delete crew member."
+        });
+    }
+  };
+  
+  const handleEdit = (crew: CrewMember) => {
+    setEditingCrew(crew);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCrew(null);
+  };
 
   return (
     <div className="grid md:grid-cols-2 gap-8">
       <div>
-        <h3 className="text-lg font-semibold mb-4 text-primary">Add New Crew Member</h3>
+        <h3 className="text-lg font-semibold mb-4 text-primary">{editingCrew ? "Edit Crew Member" : "Add New Crew Member"}</h3>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -82,7 +142,7 @@ export default function CrewManagement() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Assigned Store</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} defaultValue="">
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a store" />
@@ -98,7 +158,15 @@ export default function CrewManagement() {
                 </FormItem>
               )}
             />
-            <Button type="submit"><PlusCircle className="mr-2" /> Add Crew Member</Button>
+            <div className="flex gap-2">
+                <Button type="submit">
+                    {editingCrew ? <Edit className="mr-2" /> : <PlusCircle className="mr-2" />}
+                    {editingCrew ? "Update Crew" : "Add Crew Member"}
+                </Button>
+                {editingCrew && (
+                    <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                )}
+            </div>
           </form>
         </Form>
       </div>
@@ -110,15 +178,46 @@ export default function CrewManagement() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Store</TableHead>
+                <TableHead className='text-right'>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {crewMembers.map((crew) => (
+              {crewMembers.length > 0 ? crewMembers.map((crew) => (
                 <TableRow key={crew.id}>
                   <TableCell className="font-medium">{crew.name}</TableCell>
                   <TableCell>{stores.find(s => s.id === crew.storeId)?.name || 'N/A'}</TableCell>
+                  <TableCell className='text-right space-x-2'>
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(crew)}>
+                        <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className='text-destructive hover:text-destructive'>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the crew member "{crew.name}" from the database.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(crew.id)} className='bg-destructive hover:bg-destructive/90'>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={3} className="h-24 text-center">
+                    No crew members found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
