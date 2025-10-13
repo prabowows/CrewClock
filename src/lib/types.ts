@@ -21,6 +21,7 @@ export interface AttendanceLog {
   type: 'in' | 'out';
   photoURL?: string;
   shift?: string;
+  notes?: string;
 }
 
 export interface BroadcastMessage {

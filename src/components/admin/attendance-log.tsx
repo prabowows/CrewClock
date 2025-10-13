@@ -24,6 +24,7 @@ import {
     DialogTitle,
     DialogDescription,
     DialogTrigger,
+    DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,11 +34,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, where, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import type { AttendanceLog, Store } from '@/lib/types';
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Camera, Users, Loader } from "lucide-react";
+import { CalendarIcon, Camera, Users, Loader, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -64,6 +68,9 @@ export default function AttendanceLog() {
   const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLog | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<AttendanceSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedLogForNotes, setSelectedLogForNotes] = useState<AttendanceLog | null>(null);
+  const [noteInput, setNoteInput] = useState("");
+  const { toast } = useToast();
 
 
   useEffect(() => {
@@ -154,6 +161,33 @@ export default function AttendanceLog() {
     setSelectedDateRange(date); // Revert to the last applied date range
     setIsPopoverOpen(false);
   }
+
+  const handleOpenNotesDialog = (log: AttendanceLog) => {
+    setSelectedLogForNotes(log);
+    setNoteInput(log.notes || "");
+  };
+  
+  const handleSaveNote = async () => {
+    if (!selectedLogForNotes) return;
+    try {
+      const logRef = doc(db, 'attendance', selectedLogForNotes.id);
+      await updateDoc(logRef, {
+        notes: noteInput,
+      });
+      toast({
+        title: "Catatan Disimpan",
+        description: "Catatan kehadiran telah diperbarui.",
+      });
+      setSelectedLogForNotes(null);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal menyimpan catatan.",
+      });
+      console.error("Error saving note:", error);
+    }
+  };
 
   const LoadingOverlay = () => (
     <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
@@ -299,7 +333,7 @@ export default function AttendanceLog() {
         )}
       </Dialog>
       
-      <Dialog>
+      <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForNotes(null)}>
         <div className='relative'>
             {isLoading && <LoadingOverlay />}
           <h3 className="text-xl font-semibold mb-4 text-primary">Log Lengkap</h3>
@@ -312,38 +346,43 @@ export default function AttendanceLog() {
                   <TableHead>Store</TableHead>
                   <TableHead>Time</TableHead>
                   <TableHead>Shift</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {logs.length > 0 ? logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                      {log.photoURL ? (
-                        <DialogTrigger asChild onClick={() => setSelectedLogForImage(log)}>
-                          <button className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer">
+                  <DialogTrigger asChild key={log.id}>
+                    <TableRow className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>
+                      <TableCell>
+                        {log.photoURL ? (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setSelectedLogForImage(log); }}
+                            className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer"
+                          >
                             <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
                           </button>
-                        </DialogTrigger>
-                      ) : (
-                        <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center">
-                          <Camera className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">{log.crewMemberName}</TableCell>
-                    <TableCell>{log.storeName}</TableCell>
-                    <TableCell>{log.timestamp.toLocaleString()}</TableCell>
-                    <TableCell>{log.shift || '-'}</TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
-                        {log.type === "in" ? "Clock In" : "Clock Out"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
+                        ) : (
+                          <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center">
+                            <Camera className="w-6 h-6 text-muted-foreground" />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">{log.crewMemberName}</TableCell>
+                      <TableCell>{log.storeName}</TableCell>
+                      <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                      <TableCell>{log.shift || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
+                          {log.type === "in" ? "Clock In" : "Clock Out"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{log.notes || '-'}</TableCell>
+                    </TableRow>
+                  </DialogTrigger>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       No attendance records found for this period.
                     </TableCell>
                   </TableRow>
@@ -352,6 +391,40 @@ export default function AttendanceLog() {
             </Table>
           </div>
         </div>
+
+        {/* Dialog for adding/editing notes */}
+        {selectedLogForNotes && (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add/Edit Note</DialogTitle>
+              <DialogDescription>
+                Add a note for {selectedLogForNotes.crewMemberName} at {selectedLogForNotes.timestamp.toLocaleString()}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Note</Label>
+                <Textarea
+                  id="notes"
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="e.g., Crew sakit, shift digantikan oleh..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSelectedLogForNotes(null)}>Batal</Button>
+              <Button onClick={handleSaveNote}>Simpan Catatan</Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+      
+      <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
+        {/* This DialogTrigger is now virtual, the image button triggers it */}
+        <DialogTrigger asChild>
+          <button className="hidden" />
+        </DialogTrigger>
         {selectedLogForImage && (
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
