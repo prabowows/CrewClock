@@ -155,8 +155,6 @@ export default function CrewClock() {
       return;
     }
   
-    // Firestore query to get the last action for a specific crew member.
-    // This query requires a composite index on (crewMemberId, timestamp).
     const q = query(
       collection(db, 'attendance'),
       where('crewMemberId', '==', selectedCrewId),
@@ -178,10 +176,19 @@ export default function CrewClock() {
       }
     }, (error) => {
         console.error("Firestore snapshot error:", error);
+        // This might happen if the composite index is not created yet.
+        // We can add a toast message here to inform the user.
+        if (error.code === 'failed-precondition') {
+          toast({
+            variant: "destructive",
+            title: "Indeks Firestore Diperlukan",
+            description: "Memuat status terakhir memerlukan pembuatan indeks di konsol Firebase.",
+          });
+        }
     });
   
     return () => unsubscribe();
-  }, [selectedCrewId]);
+  }, [selectedCrewId, toast]);
 
 
   const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage && !!selectedShift;
@@ -478,3 +485,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    

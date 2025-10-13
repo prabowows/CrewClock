@@ -141,8 +141,7 @@ export default function AttendanceLog() {
     const q = query(
       collection(db, 'attendance'), 
       where('timestamp', '>=', startTimestamp),
-      where('timestamp', '<=', endTimestamp),
-      orderBy('timestamp', 'desc')
+      where('timestamp', '<=', endTimestamp)
     );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -155,6 +154,9 @@ export default function AttendanceLog() {
           timestamp: (data.timestamp as Timestamp).toDate(),
         } as AttendanceLog);
       });
+      
+      // Sort by timestamp descending on the client
+      logsData.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
       if (selectedStoreId !== 'all') {
         logsData = logsData.filter(log => log.storeId === selectedStoreId);
@@ -165,11 +167,19 @@ export default function AttendanceLog() {
     }, (error) => {
       console.error("Error fetching attendance logs:", error);
       setIsLoading(false);
-      toast({
-        variant: "destructive",
-        title: "Error Memuat Log",
-        description: "Gagal memuat data kehadiran. Mungkin memerlukan pembuatan indeks di Firestore.",
-      })
+      if (error.code === 'failed-precondition') {
+         toast({
+            variant: "destructive",
+            title: "Indeks Firestore Diperlukan",
+            description: "Kueri ini memerlukan indeks. Silakan buat di Firebase Console.",
+        });
+      } else {
+        toast({
+            variant: "destructive",
+            title: "Error Memuat Log",
+            description: "Gagal memuat data kehadiran.",
+        });
+      }
     });
 
     return () => unsubscribe();
@@ -449,48 +459,48 @@ export default function AttendanceLog() {
               </TableHeader>
               <TableBody>
                 {logs.length > 0 ? logs.map((log) => (
-                  <TableRow key={log.id} className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>
-                    <TableCell>
-                      {log.photoURL ? (
-                        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
+                  <TableRow key={log.id}>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                       <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
                           <DialogTrigger asChild>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setSelectedLogForImage(log); }}
-                              className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer"
-                            >
-                              <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
-                            </button>
+                              <button
+                                  onClick={() => setSelectedLogForImage(log)}
+                                  className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer block"
+                              >
+                                {log.photoURL ? (
+                                    <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <Camera className="w-6 h-6 text-muted-foreground" />
+                                    </div>
+                                )}
+                              </button>
                           </DialogTrigger>
-                          {selectedLogForImage && selectedLogForImage.id === log.id && (
-                            <DialogContent className="sm:max-w-md">
-                              <DialogHeader>
-                                <DialogTitle>{selectedLogForImage.crewMemberName}</DialogTitle>
-                                <DialogDescription>
-                                  {selectedLogForImage.storeName} - {selectedLogForImage.timestamp.toLocaleString()}
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="mt-4">
-                                <Image src={selectedLogForImage.photoURL!} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
-                              </div>
-                            </DialogContent>
-                          )}
-                        </Dialog>
-                      ) : (
-                        <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center">
-                          <Camera className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                      )}
+                           {selectedLogForImage && selectedLogForImage.id === log.id && (
+                               <DialogContent className="sm:max-w-md">
+                                   <DialogHeader>
+                                       <DialogTitle>{selectedLogForImage.crewMemberName}</DialogTitle>
+                                       <DialogDescription>
+                                           {selectedLogForImage.storeName} - {selectedLogForImage.timestamp.toLocaleString()}
+                                       </DialogDescription>
+                                   </DialogHeader>
+                                   <div className="mt-4">
+                                       <Image src={selectedLogForImage.photoURL!} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
+                                   </div>
+                               </DialogContent>
+                           )}
+                       </Dialog>
                     </TableCell>
-                    <TableCell className="font-medium">{log.crewMemberName}</TableCell>
-                    <TableCell>{log.storeName}</TableCell>
-                    <TableCell>{log.timestamp.toLocaleString()}</TableCell>
-                    <TableCell>{log.shift || '-'}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-medium cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.crewMemberName}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.storeName}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.timestamp.toLocaleString()}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.shift || '-'}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>
                       <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
                         {log.type === "in" ? "Clock In" : "Clock Out"}
                       </Badge>
                     </TableCell>
-                    <TableCell>{log.notes || '-'}</TableCell>
+                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.notes || '-'}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
