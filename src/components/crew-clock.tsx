@@ -47,6 +47,7 @@ export default function CrewClock() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isComboboxOpen, setIsComboboxOpen] = useState(false);
+  const [comboboxValue, setComboboxValue] = useState("");
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -295,6 +296,7 @@ export default function CrewClock() {
     setCapturedImage(null);
     setSelectedShift(null);
     setIsComboboxOpen(false);
+    setComboboxValue("");
   }
 
 
@@ -306,6 +308,14 @@ export default function CrewClock() {
     if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km dari toko untuk clock in/out.</AlertDescription>;
     return <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance.toFixed(2)} km). Siap untuk clock in/out.</AlertDescription>;
   }
+
+  const filteredCrew = useMemo(() => {
+    if (!comboboxValue) return [];
+    const lowercasedValue = comboboxValue.toLowerCase();
+    return crewMembers.filter(crew =>
+      crew.name.toLowerCase().includes(lowercasedValue)
+    );
+  }, [comboboxValue, crewMembers]);
 
   return (
     <Card className="w-full max-w-md shadow-2xl">
@@ -372,11 +382,17 @@ export default function CrewClock() {
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
               <Command>
-                <CommandInput placeholder="Cari nama kru..." />
+                <CommandInput 
+                  placeholder="Cari nama kru..." 
+                  value={comboboxValue}
+                  onValueChange={setComboboxValue}
+                />
                 <CommandList>
-                  <CommandEmpty>Nama kru tidak ditemukan.</CommandEmpty>
+                  {comboboxValue && filteredCrew.length === 0 && (
+                    <CommandEmpty>Nama kru tidak ditemukan.</CommandEmpty>
+                  )}
                   <CommandGroup>
-                    {crewMembers.map((crew) => (
+                    {filteredCrew.map((crew) => (
                       <CommandItem
                         key={crew.id}
                         value={crew.name}
