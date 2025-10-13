@@ -449,34 +449,49 @@ export default function AttendanceLog() {
               </TableHeader>
               <TableBody>
                 {logs.length > 0 ? logs.map((log) => (
-                  <DialogTrigger asChild key={log.id}>
-                    <TableRow className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>
-                      <TableCell>
-                        {log.photoURL ? (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setSelectedLogForImage(log); }}
-                            className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer"
-                          >
-                            <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
-                          </button>
-                        ) : (
-                          <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center">
-                            <Camera className="w-6 h-6 text-muted-foreground" />
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">{log.crewMemberName}</TableCell>
-                      <TableCell>{log.storeName}</TableCell>
-                      <TableCell>{log.timestamp.toLocaleString()}</TableCell>
-                      <TableCell>{log.shift || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
-                          {log.type === "in" ? "Clock In" : "Clock Out"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{log.notes || '-'}</TableCell>
-                    </TableRow>
-                  </DialogTrigger>
+                  <TableRow key={log.id} className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>
+                    <TableCell>
+                      {log.photoURL ? (
+                        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
+                          <DialogTrigger asChild>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSelectedLogForImage(log); }}
+                              className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer"
+                            >
+                              <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
+                            </button>
+                          </DialogTrigger>
+                          {selectedLogForImage && selectedLogForImage.id === log.id && (
+                            <DialogContent className="sm:max-w-md">
+                              <DialogHeader>
+                                <DialogTitle>{selectedLogForImage.crewMemberName}</DialogTitle>
+                                <DialogDescription>
+                                  {selectedLogForImage.storeName} - {selectedLogForImage.timestamp.toLocaleString()}
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="mt-4">
+                                <Image src={selectedLogForImage.photoURL!} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
+                              </div>
+                            </DialogContent>
+                          )}
+                        </Dialog>
+                      ) : (
+                        <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center">
+                          <Camera className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">{log.crewMemberName}</TableCell>
+                    <TableCell>{log.storeName}</TableCell>
+                    <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                    <TableCell>{log.shift || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
+                        {log.type === "in" ? "Clock In" : "Clock Out"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{log.notes || '-'}</TableCell>
+                  </TableRow>
                 )) : (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center">
@@ -513,25 +528,6 @@ export default function AttendanceLog() {
               <Button onClick={handleSaveNote}>Simpan Catatan</Button>
             </DialogFooter>
           </DialogContent>
-        )}
-      </Dialog>
-
-      <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
-        <DialogTrigger asChild>
-          <button className="hidden" />
-        </DialogTrigger>
-        {selectedLogForImage && (
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>{selectedLogForImage.crewMemberName}</DialogTitle>
-                    <DialogDescription>
-                        {selectedLogForImage.storeName} - {selectedLogForImage.timestamp.toLocaleString()}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="mt-4">
-                    <Image src={selectedLogForImage.photoURL!} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
-                </div>
-            </DialogContent>
         )}
       </Dialog>
       
@@ -724,3 +720,5 @@ export default function AttendanceLog() {
     </div>
   );
 }
+
+    
