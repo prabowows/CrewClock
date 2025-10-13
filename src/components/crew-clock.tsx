@@ -345,30 +345,28 @@ export default function CrewClock() {
         )}
 
         <div className="space-y-4">
-            <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null); setSelectedShift(null);}} value={selectedCrewId || ""}>
+          <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null); setSelectedShift(null);}} value={selectedCrewId || ""}>
             <SelectTrigger className="w-full text-lg h-12">
-                <SelectValue placeholder="Pilih nama Anda..." />
+              <SelectValue placeholder="Pilih nama Anda..." />
             </SelectTrigger>
             <SelectContent>
-                {crewMembers.map((crew: CrewMember) => (
+              {crewMembers.map((crew: CrewMember) => (
                 <SelectItem key={crew.id} value={crew.id}>
-                    {crew.name}
+                  {crew.name}
                 </SelectItem>
-                ))}
+              ))}
             </SelectContent>
-            </Select>
-
-            {selectedCrewId && (
-                <Select onValueChange={setSelectedShift} value={selectedShift || ""}>
-                    <SelectTrigger className="w-full text-lg h-12">
-                        <SelectValue placeholder="Pilih Shift Anda..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Shift 1">Shift 1</SelectItem>
-                        <SelectItem value="Shift 2">Shift 2</SelectItem>
-                    </SelectContent>
-                </Select>
-            )}
+          </Select>
+          
+          <Select onValueChange={setSelectedShift} value={selectedShift || ""} disabled={!selectedCrewId}>
+            <SelectTrigger className="w-full text-lg h-12">
+              <SelectValue placeholder="Pilih Shift Anda..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Shift 1">Shift 1</SelectItem>
+              <SelectItem value="Shift 2">Shift 2</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         
         <Alert>
