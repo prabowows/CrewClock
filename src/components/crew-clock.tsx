@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -20,7 +21,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, ChevronsUpDown, Check, ExternalLink } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, ChevronsUpDown, Check, Link2 } from "lucide-react";
 import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
@@ -354,12 +355,14 @@ export default function CrewClock() {
                                           <CardContent className="flex flex-col p-4 space-y-2">
                                               <p className="text-sm text-foreground/90">{message.message}</p>
                                               {message.attachmentURL && (
-                                                <Button variant="outline" size="sm" asChild className="mt-2">
-                                                  <a href={message.attachmentURL} target="_blank" rel="noopener noreferrer">
-                                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                                    Lihat Lampiran
-                                                  </a>
-                                                </Button>
+                                                <a
+                                                  href={message.attachmentURL}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-primary hover:underline text-sm mt-2 inline-block"
+                                                >
+                                                  Lampiran
+                                                </a>
                                               )}
                                               <p className="text-xs text-right text-muted-foreground pt-2">
                                                   {formatDistanceToNow(message.timestamp, { addSuffix: true })}

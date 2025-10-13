@@ -166,16 +166,15 @@ export default function BroadcastMessage() {
                         {broadcasts.length > 0 ? broadcasts.map((msg) => (
                             <TableRow key={msg.id}>
                                 <TableCell className='whitespace-pre-wrap break-words'>
-                                  {msg.message}
+                                  <p>{msg.message}</p>
                                   {msg.attachmentURL && (
                                     <a
                                       href={msg.attachmentURL}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-primary hover:underline flex items-center gap-1 mt-2"
+                                      className="text-primary hover:underline text-sm mt-2 inline-block"
                                     >
-                                      <Link2 className="h-4 w-4" />
-                                      View Attachment
+                                      Lampiran
                                     </a>
                                   )}
                                 </TableCell>
