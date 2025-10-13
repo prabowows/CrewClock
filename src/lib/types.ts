@@ -20,6 +20,7 @@ export interface AttendanceLog {
   timestamp: Date;
   type: 'in' | 'out';
   photoURL?: string;
+  shift?: string;
 }
 
 export interface BroadcastMessage {

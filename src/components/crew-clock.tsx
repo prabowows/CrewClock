@@ -34,6 +34,7 @@ export default function CrewClock() {
   const [stores, setStores] = useState<Store[]>([]);
   const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
+  const [selectedShift, setSelectedShift] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(true);
@@ -130,6 +131,7 @@ export default function CrewClock() {
     if (!selectedCrewId) {
       setLastAction(null);
       setCapturedImage(null);
+      setSelectedShift(null);
       return;
     }
   
@@ -158,8 +160,8 @@ export default function CrewClock() {
   }, [selectedCrewId]);
 
 
-  const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage;
-  const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage;
+  const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage && !!selectedShift;
+  const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage && !!selectedShift;
 
   // Effect for camera
   useEffect(() => {
@@ -210,7 +212,7 @@ export default function CrewClock() {
   }, [selectedCrewId, toast]);
 
   const handleClockAction = async (type: 'in' | 'out') => {
-    if (!selectedCrewMember || !assignedStore || !capturedImage) return;
+    if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift) return;
   
     setIsProcessing(true);
   
@@ -225,6 +227,7 @@ export default function CrewClock() {
         timestamp: new Date(),
         type,
         photoURL: photoURL,
+        shift: selectedShift,
       });
   
       toast({
@@ -235,6 +238,7 @@ export default function CrewClock() {
       // Reset to initial state
       setCapturedImage(null);
       setSelectedCrewId(null);
+      setSelectedShift(null);
 
     } catch (e) {
       console.error('Error during clock action: ', e);
@@ -340,19 +344,32 @@ export default function CrewClock() {
           </Card>
         )}
 
+        <div className="space-y-4">
+            <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null); setSelectedShift(null);}} value={selectedCrewId || ""}>
+            <SelectTrigger className="w-full text-lg h-12">
+                <SelectValue placeholder="Pilih nama Anda..." />
+            </SelectTrigger>
+            <SelectContent>
+                {crewMembers.map((crew: CrewMember) => (
+                <SelectItem key={crew.id} value={crew.id}>
+                    {crew.name}
+                </SelectItem>
+                ))}
+            </SelectContent>
+            </Select>
 
-        <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null);}} value={selectedCrewId || ""}>
-          <SelectTrigger className="w-full text-lg h-12">
-            <SelectValue placeholder="Pilih nama Anda..." />
-          </SelectTrigger>
-          <SelectContent>
-            {crewMembers.map((crew: CrewMember) => (
-              <SelectItem key={crew.id} value={crew.id}>
-                {crew.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            {selectedCrewId && (
+                <Select onValueChange={setSelectedShift} value={selectedShift || ""}>
+                    <SelectTrigger className="w-full text-lg h-12">
+                        <SelectValue placeholder="Pilih Shift Anda..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="Shift 1">Shift 1</SelectItem>
+                        <SelectItem value="Shift 2">Shift 2</SelectItem>
+                    </SelectContent>
+                </Select>
+            )}
+        </div>
         
         <Alert>
           <MapPin className="h-4 w-4" />

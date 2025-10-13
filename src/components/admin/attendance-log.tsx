@@ -276,6 +276,7 @@ export default function AttendanceLog() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Waktu</TableHead>
+                                <TableHead>Shift</TableHead>
                                 <TableHead className='text-right'>Tindakan</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -283,6 +284,7 @@ export default function AttendanceLog() {
                             {selectedSummary.logs.map(log => (
                                 <TableRow key={log.id}>
                                     <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                                    <TableCell>{log.shift || '-'}</TableCell>
                                     <TableCell className='text-right'>
                                        <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
                                          {log.type === "in" ? "Clock In" : "Clock Out"}
@@ -309,6 +311,7 @@ export default function AttendanceLog() {
                   <TableHead>Crew Member</TableHead>
                   <TableHead>Store</TableHead>
                   <TableHead>Time</TableHead>
+                  <TableHead>Shift</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -331,6 +334,7 @@ export default function AttendanceLog() {
                     <TableCell className="font-medium">{log.crewMemberName}</TableCell>
                     <TableCell>{log.storeName}</TableCell>
                     <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                    <TableCell>{log.shift || '-'}</TableCell>
                     <TableCell className="text-right">
                       <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
                         {log.type === "in" ? "Clock In" : "Clock Out"}
@@ -339,7 +343,7 @@ export default function AttendanceLog() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       No attendance records found for this period.
                     </TableCell>
                   </TableRow>
@@ -365,5 +369,3 @@ export default function AttendanceLog() {
     </div>
   );
 }
-
-    
