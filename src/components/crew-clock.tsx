@@ -17,8 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, ChevronsUpDown, Check } from "lucide-react";
 import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +29,7 @@ import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
+import { cn } from "@/lib/utils";
 
 
 export default function CrewClock() {
@@ -43,6 +46,7 @@ export default function CrewClock() {
   const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -286,6 +290,13 @@ export default function CrewClock() {
     setTimeout(() => setSelectedCrewId(currentId), 0);
   };
 
+  const handleSelectCrew = (crewId: string) => {
+    setSelectedCrewId(crewId);
+    setCapturedImage(null);
+    setSelectedShift(null);
+    setIsComboboxOpen(false);
+  }
+
 
   const getStatus = () => {
     if (isLocating) return <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Mendapatkan lokasi Anda...</AlertDescription>;
@@ -345,18 +356,47 @@ export default function CrewClock() {
         )}
 
         <div className="space-y-4">
-          <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null); setSelectedShift(null);}} value={selectedCrewId || ""}>
-            <SelectTrigger className="w-full text-lg h-12">
-              <SelectValue placeholder="Pilih nama Anda..." />
-            </SelectTrigger>
-            <SelectContent>
-              {crewMembers.map((crew: CrewMember) => (
-                <SelectItem key={crew.id} value={crew.id}>
-                  {crew.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={isComboboxOpen} onOpenChange={setIsComboboxOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={isComboboxOpen}
+                className="w-full justify-between text-lg h-12"
+              >
+                {selectedCrewId
+                  ? crewMembers.find((crew) => crew.id === selectedCrewId)?.name
+                  : "Pilih nama Anda..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+              <Command>
+                <CommandInput placeholder="Cari nama kru..." />
+                <CommandList>
+                  <CommandEmpty>Nama kru tidak ditemukan.</CommandEmpty>
+                  <CommandGroup>
+                    {crewMembers.map((crew) => (
+                      <CommandItem
+                        key={crew.id}
+                        value={crew.name}
+                        onSelect={() => handleSelectCrew(crew.id)}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedCrewId === crew.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {crew.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
           
           <Select onValueChange={setSelectedShift} value={selectedShift || ""} disabled={!selectedCrewId}>
             <SelectTrigger className="w-full text-lg h-12">
