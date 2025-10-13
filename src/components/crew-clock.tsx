@@ -177,14 +177,7 @@ export default function CrewClock() {
         setLastAction(null);
       }
     }, (error) => {
-        // This is the error handler for the snapshot listener.
-        // The index error will be caught here. We can log it, but for now we do nothing to avoid crash
         console.error("Firestore snapshot error:", error);
-        if (error.code === 'failed-precondition') {
-          // This specific error indicates a missing index.
-          // We can try to recover or inform the user, but for now we'll just reset the action.
-          setLastAction(null);
-        }
     });
   
     return () => unsubscribe();
@@ -248,19 +241,21 @@ export default function CrewClock() {
     setIsProcessing(true);
   
     try {
-      const photoURL = capturedImage;
-  
-      await addDoc(collection(db, 'attendance'), {
+      const newLogData = {
         crewMemberId: selectedCrewMember.id,
         crewMemberName: selectedCrewMember.name,
         storeId: assignedStore.id,
         storeName: assignedStore.name,
         timestamp: new Date(),
         type,
-        photoURL: photoURL,
+        photoURL: capturedImage,
         shift: selectedShift,
-      });
+      };
+
+      const docRef = await addDoc(collection(db, 'attendance'), newLogData);
   
+      setLastAction({ id: docRef.id, ...newLogData });
+
       toast({
         title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
         description: `${selectedCrewMember.name} at ${assignedStore.name}`,
@@ -483,5 +478,3 @@ export default function CrewClock() {
     </Card>
   );
 }
-
-    
