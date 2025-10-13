@@ -135,22 +135,20 @@ export default function CrewClock() {
   
     const q = query(
       collection(db, 'attendance'),
-      where('crewMemberId', '==', selectedCrewId)
+      where('crewMemberId', '==', selectedCrewId),
+      orderBy('timestamp', 'desc'),
+      limit(1)
     );
   
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        const logs = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                timestamp: (data.timestamp as Timestamp).toDate(),
-            } as AttendanceLog;
-        }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-        
-        setLastAction(logs[0] || null);
-
+        const doc = snapshot.docs[0];
+        const data = doc.data();
+        setLastAction({
+          id: doc.id,
+          ...data,
+          timestamp: (data.timestamp as Timestamp).toDate(),
+        } as AttendanceLog);
       } else {
         setLastAction(null);
       }
@@ -303,46 +301,44 @@ export default function CrewClock() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <Card className="bg-primary/10 border-primary/20">
-            <CardHeader className="p-4">
-                <CardTitle className="text-lg flex items-center">
-                    <Bell className="mr-2 h-5 w-5 text-primary"/>
-                    Papan Pengumuman
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-                {broadcasts.length > 0 ? (
-                    <Carousel
-                        plugins={[autoplay.current]}
-                        opts={{ align: "start", loop: true }}
-                        className="w-full"
-                        onMouseEnter={autoplay.current.stop}
-                        onMouseLeave={autoplay.current.reset}
-                    >
-                        <CarouselContent>
-                            {broadcasts.map((message) => (
-                                <CarouselItem key={message.id}>
-                                    <div className="p-1">
-                                        <Card>
-                                            <CardContent className="flex flex-col p-4 space-y-2">
-                                                <p className="text-sm text-foreground/90">{message.message}</p>
-                                                <p className="text-xs text-right text-muted-foreground">
-                                                    {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                                                </p>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
-                                </CarouselItem>
-                            ))}
-                        </CarouselContent>
-                        <CarouselPrevious className="hidden sm:flex -left-4" />
-                        <CarouselNext className="hidden sm:flex -right-4" />
-                    </Carousel>
-                ) : (
-                    <p className="text-sm text-center text-muted-foreground p-4">Tidak ada pengumuman saat ini.</p>
-                )}
-            </CardContent>
-        </Card>
+        {broadcasts.length > 0 && (
+          <Card className="bg-primary/10 border-primary/20">
+              <CardHeader className="p-4">
+                  <CardTitle className="text-lg flex items-center">
+                      <Bell className="mr-2 h-5 w-5 text-primary"/>
+                      Papan Pengumuman
+                  </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                  <Carousel
+                      plugins={[autoplay.current]}
+                      opts={{ align: "start", loop: true }}
+                      className="w-full"
+                      onMouseEnter={autoplay.current.stop}
+                      onMouseLeave={autoplay.current.reset}
+                  >
+                      <CarouselContent>
+                          {broadcasts.map((message) => (
+                              <CarouselItem key={message.id}>
+                                  <div className="p-1">
+                                      <Card>
+                                          <CardContent className="flex flex-col p-4 space-y-2">
+                                              <p className="text-sm text-foreground/90">{message.message}</p>
+                                              <p className="text-xs text-right text-muted-foreground">
+                                                  {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                                              </p>
+                                          </CardContent>
+                                      </Card>
+                                  </div>
+                              </CarouselItem>
+                          ))}
+                      </CarouselContent>
+                      <CarouselPrevious className="hidden sm:flex -left-4" />
+                      <CarouselNext className="hidden sm:flex -right-4" />
+                  </Carousel>
+              </CardContent>
+          </Card>
+        )}
 
 
         <Select onValueChange={(value) => { setSelectedCrewId(value); setCapturedImage(null);}} value={selectedCrewId || ""}>
@@ -421,5 +417,3 @@ export default function CrewClock() {
     </Card>
   );
 }
-
-    

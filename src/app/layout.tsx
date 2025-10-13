@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "CrewClock",
+  title: "FruitHub",
   description: "An attendance system for store crew.",
 };
 

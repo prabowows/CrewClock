@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,8 +58,9 @@ export default function Header() {
     <>
       <header className="bg-card shadow-md">
         <nav className="container mx-auto flex items-center justify-between p-4">
-          <Link href="/" className="text-2xl font-bold text-primary">
-            CrewClock
+          <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-primary">
+            <Image src="https://storage.googleapis.com/stella-images/studio-app-pro-c9e0e5509e53/frtL32_1721708891547.png" alt="FruitHub Logo" width={32} height={32} />
+            <span className="text-xl font-bold">FruitHub</span>
           </Link>
           {isAdminPage ? (
             <Button variant="outline" onClick={handleExitAdminClick}>
