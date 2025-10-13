@@ -18,10 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, ChevronsUpDown, Check, Link2 } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, Link2 } from "lucide-react";
 import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
@@ -30,13 +28,12 @@ import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
-import { cn } from "@/lib/utils";
-
 
 export default function CrewClock() {
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
@@ -47,8 +44,6 @@ export default function CrewClock() {
   const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
-  const [comboboxValue, setComboboxValue] = useState("");
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,7 +56,7 @@ export default function CrewClock() {
 
   useEffect(() => {
     const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
-      setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+      setAllCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
     });
     const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
       setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
@@ -107,10 +102,15 @@ export default function CrewClock() {
       unsubBroadcasts();
     };
   }, []);
+  
+  const filteredCrewMembers = useMemo(() => {
+    if (!selectedStoreId) return [];
+    return allCrewMembers.filter(crew => crew.storeId === selectedStoreId);
+  }, [selectedStoreId, allCrewMembers]);
 
   const selectedCrewMember = useMemo(
-    () => crewMembers.find((c) => c.id === selectedCrewId),
-    [selectedCrewId, crewMembers]
+    () => allCrewMembers.find((c) => c.id === selectedCrewId),
+    [selectedCrewId, allCrewMembers]
   );
   
   const assignedStore = useMemo(
@@ -132,6 +132,20 @@ export default function CrewClock() {
       setDistance(null);
     }
   }, [location, assignedStore]);
+  
+  const handleStoreChange = (storeId: string) => {
+    setSelectedStoreId(storeId);
+    setSelectedCrewId(null);
+    setSelectedShift(null);
+    setCapturedImage(null);
+    setLastAction(null);
+  };
+  
+  const handleCrewChange = (crewId: string) => {
+    setSelectedCrewId(crewId);
+    setSelectedShift(null);
+    setCapturedImage(null);
+  }
 
   useEffect(() => {
     if (!selectedCrewId) {
@@ -245,7 +259,7 @@ export default function CrewClock() {
       setCapturedImage(null);
       setSelectedCrewId(null);
       setSelectedShift(null);
-      setComboboxValue("");
+      setSelectedStoreId(null);
 
     } catch (e) {
       console.error('Error during clock action: ', e);
@@ -293,41 +307,21 @@ export default function CrewClock() {
     setTimeout(() => setSelectedCrewId(currentId), 0);
   };
 
-  const handleSelectCrew = (crewId: string) => {
-    setSelectedCrewId(crewId);
-    setCapturedImage(null);
-    setSelectedShift(null);
-    setIsComboboxOpen(false);
-    const selectedName = crewMembers.find(c => c.id === crewId)?.name || "";
-    setComboboxValue(selectedName);
-  }
-
-
   const getStatus = () => {
     if (isLocating) return <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Mendapatkan lokasi Anda...</AlertDescription>;
     if (locationError) return <AlertDescription className="flex items-center text-destructive"><WifiOff className="mr-2 h-4 w-4" />Tidak bisa mendapatkan lokasi: Gagal memperbarui posisi.</AlertDescription>;
-    if (!selectedCrewId) return <AlertDescription>Silakan pilih nama Anda untuk memulai.</AlertDescription>;
+    if (!selectedCrewId) return <AlertDescription>Silakan pilih toko dan nama Anda untuk memulai.</AlertDescription>;
     if (distance === null) return <AlertDescription>Memverifikasi jarak dari toko...</AlertDescription>;
     if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km dari toko untuk clock in/out.</AlertDescription>;
     return <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance.toFixed(2)} km). Siap untuk clock in/out.</AlertDescription>;
   }
-
-  const filteredCrew = useMemo(() => {
-    const lowercasedValue = comboboxValue.toLowerCase();
-    const selectedName = crewMembers.find(c => c.id === selectedCrewId)?.name || '';
-    if (!comboboxValue || lowercasedValue === selectedName.toLowerCase()) return [];
-    
-    return crewMembers.filter(crew =>
-      crew.name.toLowerCase().includes(lowercasedValue)
-    );
-  }, [comboboxValue, crewMembers, selectedCrewId]);
 
   return (
     <Card className="w-full max-w-md shadow-2xl">
       <CardHeader>
         <CardTitle className="text-3xl font-bold text-center text-primary">FruitHub</CardTitle>
         <CardDescription className="text-center">
-          Pilih nama Anda dan lakukan clock in atau out.
+          Pilih toko, nama Anda dan lakukan clock in atau out.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -382,57 +376,27 @@ export default function CrewClock() {
         )}
 
         <div className="space-y-4">
-          <Popover open={isComboboxOpen} onOpenChange={setIsComboboxOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={isComboboxOpen}
-                className="w-full justify-between text-lg h-12"
-              >
-                {selectedCrewId
-                  ? crewMembers.find((crew) => crew.id === selectedCrewId)?.name
-                  : "Pilih nama Anda..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-              <Command>
-                <CommandInput 
-                  placeholder="Cari nama kru..." 
-                  value={comboboxValue}
-                  onValueChange={(value) => {
-                      setComboboxValue(value);
-                      if(selectedCrewId && value !== (crewMembers.find(c => c.id === selectedCrewId)?.name || '')) {
-                          setSelectedCrewId(null);
-                      }
-                  }}
-                />
-                <CommandList>
-                  {!comboboxValue && <CommandEmpty>Ketik nama Anda untuk mencari.</CommandEmpty>}
-                  {comboboxValue && filteredCrew.length === 0 && <CommandEmpty>Nama kru tidak ditemukan.</CommandEmpty>}
-                  <CommandGroup>
-                    {filteredCrew.map((crew) => (
-                      <CommandItem
-                        key={crew.id}
-                        value={crew.name}
-                        onSelect={() => handleSelectCrew(crew.id)}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            selectedCrewId === crew.id ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {crew.name}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+          <Select onValueChange={handleStoreChange} value={selectedStoreId || ""}>
+            <SelectTrigger className="w-full text-lg h-12">
+              <SelectValue placeholder="Pilih Toko Anda..." />
+            </SelectTrigger>
+            <SelectContent>
+              {stores.map(store => (
+                <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
+          <Select onValueChange={handleCrewChange} value={selectedCrewId || ""} disabled={!selectedStoreId}>
+            <SelectTrigger className="w-full text-lg h-12">
+              <SelectValue placeholder="Pilih Nama Anda..." />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredCrewMembers.map(crew => (
+                <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           
           <Select onValueChange={setSelectedShift} value={selectedShift || ""} disabled={!selectedCrewId}>
             <SelectTrigger className="w-full text-lg h-12">
