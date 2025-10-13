@@ -61,6 +61,7 @@ type AttendanceSummary = {
 };
 
 const manualEntrySchema = z.object({
+  storeId: z.string().min(1, "Please select a store."),
   crewMemberId: z.string().min(1, "Please select a crew member."),
   date: z.date({ required_error: "Please select a date." }),
   time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)."),
@@ -87,11 +88,13 @@ export default function AttendanceLog() {
   const [selectedLogForNotes, setSelectedLogForNotes] = useState<AttendanceLog | null>(null);
   const [noteInput, setNoteInput] = useState("");
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [manualEntryStore, setManualEntryStore] = useState<string | undefined>();
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
     defaultValues: {
+      storeId: "",
       crewMemberId: "",
       time: format(new Date(), "HH:mm"),
       shift: "",
@@ -196,6 +199,11 @@ export default function AttendanceLog() {
     return Object.values(summary).sort((a,b) => a.crewMemberName.localeCompare(b.crewMemberName));
   }, [logs]);
 
+  const manualEntryFilteredCrew = useMemo(() => {
+    if (!manualEntryStore) return [];
+    return crewMembers.filter(c => c.storeId === manualEntryStore);
+  }, [manualEntryStore, crewMembers]);
+
 
   const handleApplyDateRange = () => {
     setDate(selectedDateRange);
@@ -236,7 +244,7 @@ export default function AttendanceLog() {
 
   async function onManualEntrySubmit(values: z.infer<typeof manualEntrySchema>) {
     const selectedCrew = crewMembers.find(c => c.id === values.crewMemberId);
-    const assignedStore = stores.find(s => s.id === selectedCrew?.storeId);
+    const assignedStore = stores.find(s => s.id === values.storeId);
 
     if (!selectedCrew || !assignedStore) {
         toast({ variant: "destructive", title: "Error", description: "Invalid crew or store." });
@@ -265,6 +273,7 @@ export default function AttendanceLog() {
         });
         setIsManualEntryOpen(false);
         form.reset({
+            storeId: "",
             crewMemberId: "",
             time: format(new Date(), "HH:mm"),
             shift: "",
@@ -545,19 +554,48 @@ export default function AttendanceLog() {
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onManualEntrySubmit)} className="space-y-4 pt-4">
                     <FormField
+                      control={form.control}
+                      name="storeId"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>Store</FormLabel>
+                              <Select 
+                                onValueChange={(value) => {
+                                  field.onChange(value);
+                                  setManualEntryStore(value);
+                                  form.setValue('crewMemberId', ''); // Reset crew member selection
+                                }} 
+                                value={field.value}
+                              >
+                                  <FormControl>
+                                      <SelectTrigger>
+                                          <SelectValue placeholder="Pilih toko" />
+                                      </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                      {stores.map(store => (
+                                          <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                              </Select>
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                    />
+                    <FormField
                         control={form.control}
                         name="crewMemberId"
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Crew Member</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={!manualEntryStore}>
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Pilih seorang kru" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {crewMembers.map(crew => (
+                                        {manualEntryFilteredCrew.map(crew => (
                                             <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
                                         ))}
                                     </SelectContent>
