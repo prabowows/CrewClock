@@ -495,11 +495,11 @@ export default function AttendanceLog() {
                            )}
                        </Dialog>
                     </TableCell>
-                    <TableCell className="font-medium cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.crewMemberName}</TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.storeName}</TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.timestamp.toLocaleString()}</TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.shift || '-'}</TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>
+                    <TableCell className="font-medium">{log.crewMemberName}</TableCell>
+                    <TableCell>{log.storeName}</TableCell>
+                    <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                    <TableCell>{log.shift || '-'}</TableCell>
+                    <TableCell>
                       <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
                         {log.type === "in" ? "Clock In" : "Clock Out"}
                       </Badge>
@@ -508,7 +508,7 @@ export default function AttendanceLog() {
                         {log.notes ? (
                             <p className="truncate max-w-[150px]">{log.notes}</p>
                         ) : (
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenNotesDialog(log); }}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
                                 <Edit className="h-4 w-4 text-muted-foreground" />
                             </Button>
                         )}
