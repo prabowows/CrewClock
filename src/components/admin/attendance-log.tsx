@@ -138,19 +138,20 @@ export default function AttendanceLog() {
     const startTimestamp = Timestamp.fromDate(startOfDayFrom);
     const endTimestamp = Timestamp.fromDate(endOfDayTo);
     
-    let q = query(
-      collection(db, 'attendance'), 
-      where('timestamp', '>=', startTimestamp),
-      where('timestamp', '<=', endTimestamp)
-    );
-
-    if (selectedStoreId !== 'all') {
-      q = query(
-        collection(db, 'attendance'),
-        where('storeId', '==', selectedStoreId),
-        where('timestamp', '>=', startTimestamp),
-        where('timestamp', '<=', endTimestamp)
-      );
+    let q;
+    if (selectedStoreId === 'all') {
+        q = query(
+            collection(db, 'attendance'),
+            where('timestamp', '>=', startTimestamp),
+            where('timestamp', '<=', endTimestamp)
+        );
+    } else {
+        q = query(
+            collection(db, 'attendance'),
+            where('storeId', '==', selectedStoreId),
+            where('timestamp', '>=', startTimestamp),
+            where('timestamp', '<=', endTimestamp)
+        );
     }
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -504,14 +505,18 @@ export default function AttendanceLog() {
                         {log.type === "in" ? "Clock In" : "Clock Out"}
                       </Badge>
                     </TableCell>
-                    <TableCell onClick={() => handleOpenNotesDialog(log)} className="cursor-pointer">
-                        {log.notes ? (
-                            <p className="truncate max-w-[150px]">{log.notes}</p>
-                        ) : (
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Edit className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                        )}
+                     <TableCell>
+                        <DialogTrigger asChild>
+                           <button onClick={() => handleOpenNotesDialog(log)} className='w-full text-left'>
+                            {log.notes ? (
+                                <p className="truncate max-w-[150px] cursor-pointer hover:underline">{log.notes}</p>
+                            ) : (
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Edit className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                            )}
+                           </button>
+                        </DialogTrigger>
                     </TableCell>
                   </TableRow>
                 )) : (
