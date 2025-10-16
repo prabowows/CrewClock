@@ -129,7 +129,7 @@ export default function AttendanceLog() {
     if (!date?.from) return;
     
     setIsLoading(true);
-    const fromDate = date.from;
+    const fromDate = new Date(date.from);
     const toDate = date.to || date.from;
 
     const startOfDayFrom = new Date(fromDate.setHours(0, 0, 0, 0));
@@ -507,15 +507,15 @@ export default function AttendanceLog() {
                     </TableCell>
                      <TableCell>
                         <DialogTrigger asChild>
-                           <button onClick={() => handleOpenNotesDialog(log)} className='w-full text-left'>
-                            {log.notes ? (
-                                <p className="truncate max-w-[150px] cursor-pointer hover:underline">{log.notes}</p>
-                            ) : (
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <Edit className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                            )}
-                           </button>
+                          <div onClick={() => handleOpenNotesDialog(log)} className='w-full text-left cursor-pointer'>
+                           {log.notes ? (
+                               <p className="truncate max-w-[150px] hover:underline">{log.notes}</p>
+                           ) : (
+                               <div className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted">
+                                   <Edit className="h-4 w-4 text-muted-foreground" />
+                               </div>
+                           )}
+                          </div>
                         </DialogTrigger>
                     </TableCell>
                   </TableRow>
