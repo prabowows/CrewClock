@@ -44,7 +44,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, where, Timestamp, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, Timestamp, doc, updateDoc, addDoc } from 'firebase/firestore';
 import type { AttendanceLog, Store, CrewMember } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
@@ -137,12 +137,21 @@ export default function AttendanceLog() {
 
     const startTimestamp = Timestamp.fromDate(startOfDayFrom);
     const endTimestamp = Timestamp.fromDate(endOfDayTo);
-
-    const q = query(
+    
+    let q = query(
       collection(db, 'attendance'), 
       where('timestamp', '>=', startTimestamp),
       where('timestamp', '<=', endTimestamp)
     );
+
+    if (selectedStoreId !== 'all') {
+      q = query(
+        collection(db, 'attendance'),
+        where('storeId', '==', selectedStoreId),
+        where('timestamp', '>=', startTimestamp),
+        where('timestamp', '<=', endTimestamp)
+      );
+    }
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       let logsData: AttendanceLog[] = [];
@@ -155,12 +164,7 @@ export default function AttendanceLog() {
         } as AttendanceLog);
       });
       
-      // Sort by timestamp descending on the client
       logsData.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-
-      if (selectedStoreId !== 'all') {
-        logsData = logsData.filter(log => log.storeId === selectedStoreId);
-      }
 
       setLogs(logsData);
       setIsLoading(false);
@@ -460,11 +464,11 @@ export default function AttendanceLog() {
               <TableBody>
                 {logs.length > 0 ? logs.map((log) => (
                   <TableRow key={log.id}>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell>
                        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
                           <DialogTrigger asChild>
                               <button
-                                  onClick={() => setSelectedLogForImage(log)}
+                                  onClick={(e) => { e.stopPropagation(); setSelectedLogForImage(log); }}
                                   className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer block"
                               >
                                 {log.photoURL ? (
@@ -504,7 +508,7 @@ export default function AttendanceLog() {
                         {log.notes ? (
                             <p className="truncate max-w-[150px]">{log.notes}</p>
                         ) : (
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenNotesDialog(log); }}>
                                 <Edit className="h-4 w-4 text-muted-foreground" />
                             </Button>
                         )}
