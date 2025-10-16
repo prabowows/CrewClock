@@ -500,7 +500,15 @@ export default function AttendanceLog() {
                         {log.type === "in" ? "Clock In" : "Clock Out"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="cursor-pointer" onClick={() => handleOpenNotesDialog(log)}>{log.notes || '-'}</TableCell>
+                    <TableCell onClick={() => handleOpenNotesDialog(log)} className="cursor-pointer">
+                        {log.notes ? (
+                            <p className="truncate max-w-[150px]">{log.notes}</p>
+                        ) : (
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <Edit className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                        )}
+                    </TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
@@ -730,5 +738,3 @@ export default function AttendanceLog() {
     </div>
   );
 }
-
-    
