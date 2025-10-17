@@ -44,7 +44,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where, Timestamp, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, Timestamp, doc, updateDoc, addDoc, orderBy } from 'firebase/firestore';
 import type { AttendanceLog, Store, CrewMember } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
@@ -125,7 +125,7 @@ export default function AttendanceLog() {
     };
   }, []);
   
-  useEffect(() => {
+ useEffect(() => {
     if (!date?.from) return;
     
     setIsLoading(true);
@@ -138,21 +138,12 @@ export default function AttendanceLog() {
     const startTimestamp = Timestamp.fromDate(startOfDayFrom);
     const endTimestamp = Timestamp.fromDate(endOfDayTo);
     
-    let q;
-    if (selectedStoreId === 'all') {
-        q = query(
-            collection(db, 'attendance'),
-            where('timestamp', '>=', startTimestamp),
-            where('timestamp', '<=', endTimestamp)
-        );
-    } else {
-        q = query(
-            collection(db, 'attendance'),
-            where('storeId', '==', selectedStoreId),
-            where('timestamp', '>=', startTimestamp),
-            where('timestamp', '<=', endTimestamp)
-        );
-    }
+    const q = query(
+        collection(db, 'attendance'),
+        where('timestamp', '>=', startTimestamp),
+        where('timestamp', '<=', endTimestamp),
+        orderBy('timestamp', 'desc')
+    );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       let logsData: AttendanceLog[] = [];
@@ -165,7 +156,9 @@ export default function AttendanceLog() {
         } as AttendanceLog);
       });
       
-      logsData.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      if (selectedStoreId !== 'all') {
+          logsData = logsData.filter(log => log.storeId === selectedStoreId);
+      }
 
       setLogs(logsData);
       setIsLoading(false);
