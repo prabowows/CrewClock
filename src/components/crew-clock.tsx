@@ -452,7 +452,7 @@ export default function CrewClock() {
           </Alert>
 
           <Button 
-            className="w-full h-14 text-lg rounded-xl" 
+            className="w-full h-14 text-lg rounded-xl bg-[#e42841] hover:bg-[#e42841]/90" 
             disabled={!canClock || isProcessing} 
             onClick={() => handleClockAction(nextActionType)}
           >
@@ -465,6 +465,8 @@ export default function CrewClock() {
     </div>
   );
 }
+
+    
 
     
 
