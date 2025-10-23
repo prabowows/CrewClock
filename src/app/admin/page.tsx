@@ -20,7 +20,7 @@ export default function AdminPage() {
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 mb-6">
+            <TabsList className="mb-6 h-auto flex-wrap justify-start">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="attendance">Attendance</TabsTrigger>
               <TabsTrigger value="stores">Stores</TabsTrigger>
