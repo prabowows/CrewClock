@@ -19,63 +19,63 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, Link2 } from "lucide-react";
+import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, Link2, Fingerprint } from "lucide-react";
 import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { format, formatDistanceToNow } from 'date-fns';
-import Autoplay from "embla-carousel-autoplay";
 import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, onSnapshot } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { format, formatDistanceToNow } from 'date-fns';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 function DigitalClock() {
     const [time, setTime] = useState<Date | null>(null);
 
     useEffect(() => {
-        // Set initial time on the client
+        // Set time only on the client
         setTime(new Date());
-
-        // Update time every second
         const timerId = setInterval(() => {
             setTime(new Date());
         }, 1000);
 
-        // Cleanup interval on component unmount
         return () => {
             clearInterval(timerId);
         };
-    }, []); // Empty dependency array ensures this runs only on the client
+    }, []);
 
     if (!time) {
-        // Render a placeholder or nothing on the server and during initial client render
         return (
           <div className="text-center h-[68px]">
-             <div className="text-4xl font-bold text-gray-800 dark:text-gray-200">- - : - - : - -</div>
-             <div className="text-sm text-muted-foreground">Memuat...</div>
+             <div className="text-5xl font-bold text-primary">- - : - -</div>
+             <div className="text-sm text-muted-foreground">Loading...</div>
           </div>
         );
     }
 
     return (
-        <div className="text-center h-[68px]">
-            <p className="text-4xl font-bold text-gray-800 dark:text-gray-200">
-                {format(time, 'HH:mm:ss')}
+        <div className="text-center">
+            <p className="text-5xl font-bold text-primary">
+                {format(time, 'HH:mm')}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-muted-foreground">
                 {format(time, 'eeee, dd MMMM yyyy')}
             </p>
         </div>
     );
 }
 
-
 export default function CrewClock() {
   const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<string | null>(null);
@@ -87,14 +87,10 @@ export default function CrewClock() {
   const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const autoplay = useRef(
-    Autoplay({ delay: 5000, stopOnInteraction: true })
-  );
-
   const { toast } = useToast();
   const db = useFirestore();
 
@@ -113,21 +109,6 @@ export default function CrewClock() {
 
   useEffect(() => {
     fetchInitialData();
-    
-    const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
-    const unsubBroadcasts = onSnapshot(qBroadcasts, (snapshot) => {
-        const broadcastsData: BroadcastMessage[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            broadcastsData.push({
-                id: doc.id,
-                ...data,
-                timestamp: (data.timestamp as Timestamp).toDate(),
-            } as BroadcastMessage);
-        });
-        setBroadcasts(broadcastsData);
-    });
-
     setLocationError(null);
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -146,10 +127,6 @@ export default function CrewClock() {
       setLocationError("Geolocation is not supported by this browser.");
       setIsLocating(false);
     }
-
-    return () => {
-      unsubBroadcasts();
-    };
   }, []);
   
   const filteredCrewMembers = useMemo(() => {
@@ -163,8 +140,8 @@ export default function CrewClock() {
   );
   
   const assignedStore = useMemo(
-    () => stores.find((s) => s.id === selectedCrewMember?.storeId),
-    [selectedCrewMember, stores]
+    () => stores.find((s) => s.id === selectedStoreId),
+    [selectedStoreId, stores]
   );
 
   useEffect(() => {
@@ -235,22 +212,18 @@ export default function CrewClock() {
     }
   }, [selectedCrewId]);
 
-
-  const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage && !!selectedShift;
-  const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage && !!selectedShift;
-
   useEffect(() => {
     let stream: MediaStream | null = null;
   
     const getCameraPermission = async () => {
-      if (!selectedCrewId) {
-        setHasCameraPermission(null);
-        if (videoRef.current?.srcObject) {
+      if (!isCameraOpen) {
+         if (videoRef.current?.srcObject) {
             (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
             videoRef.current.srcObject = null;
         }
         return;
       }
+
       if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
         setHasCameraPermission(false);
         toast({
@@ -284,7 +257,7 @@ export default function CrewClock() {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [selectedCrewId, toast]);
+  }, [isCameraOpen, toast]);
 
   const handleClockAction = async (type: 'in' | 'out') => {
     if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift) return;
@@ -328,7 +301,6 @@ export default function CrewClock() {
       });
   };
 
-
   const handleTakePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
@@ -342,177 +314,141 @@ export default function CrewClock() {
         context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         setCapturedImage(dataUrl);
-      }
-
-      const stream = video.srcObject as MediaStream;
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+        setIsCameraOpen(false); // Close dialog on capture
       }
     }
   };
 
-  const handleRetakePhoto = () => {
-    setCapturedImage(null);
-    const currentId = selectedCrewId;
-    setSelectedCrewId(null);
-    setTimeout(() => setSelectedCrewId(currentId), 0);
-  };
-
-  const getStatus = () => {
-    if (isLocating) return <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Mendapatkan lokasi Anda...</AlertDescription>;
-    if (locationError) return <AlertDescription className="flex items-center text-destructive"><WifiOff className="mr-2 h-4 w-4" />Tidak bisa mendapatkan lokasi: Gagal memperbarui posisi.</AlertDescription>;
-    if (!selectedCrewId) return <AlertDescription>Silakan pilih toko dan nama Anda untuk memulai.</AlertDescription>;
-    if (distance === null) return <AlertDescription>Memverifikasi jarak dari toko...</AlertDescription>;
-    if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km dari toko.</AlertDescription>;
-    return <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance.toFixed(2)} km). Siap untuk clock in/out.</AlertDescription>;
-  }
+  const nextActionType = !lastAction || lastAction.type === 'out' ? 'in' : 'out';
+  const canClock = distance !== null && distance <= 1 && !!capturedImage && !!selectedShift && !!selectedCrewId;
 
   return (
-    <Card className="w-full max-w-lg shadow-2xl rounded-2xl overflow-hidden">
-      <CardHeader className="bg-background/80 backdrop-blur-sm p-6 space-y-4">
-        <DigitalClock />
-        <CardTitle className="text-3xl font-bold text-center text-primary">CrewClock</CardTitle>
-        <CardDescription className="text-center text-base">
-          Pilih toko, nama, ambil foto, dan lakukan clock in/out.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-6 space-y-6">
-        {broadcasts.length > 0 && (
-          <div className="space-y-3">
-             <h3 className="text-sm font-semibold text-muted-foreground flex items-center"><Bell className="mr-2 h-4 w-4" /> Papan Pengumuman</h3>
-              <Carousel
-                  plugins={[autoplay.current]}
-                  opts={{ align: "start", loop: true }}
-                  className="w-full"
-                  onMouseEnter={autoplay.current.stop}
-                  onMouseLeave={autoplay.current.reset}
-              >
-                  <CarouselContent>
-                      {broadcasts.map((message) => (
-                          <CarouselItem key={message.id}>
-                              <div className="p-1">
-                                  <div className="bg-primary/10 border-primary/20 border rounded-lg p-4">
-                                      <p className="text-sm text-foreground/90">{message.message}</p>
-                                      {message.attachmentURL && (
-                                        <a
-                                          href={message.attachmentURL}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-primary hover:underline text-xs mt-2 inline-flex items-center gap-1"
-                                        >
-                                          <Link2 className="h-3 w-3" />
-                                          Lampiran
-                                        </a>
-                                      )}
-                                      <p className="text-xs text-right text-muted-foreground pt-2">
-                                          {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                                      </p>
-                                  </div>
-                              </div>
-                          </CarouselItem>
-                      ))}
-                  </CarouselContent>
-                  <CarouselPrevious className="hidden sm:flex -left-4" />
-                  <CarouselNext className="hidden sm:flex -right-4" />
-              </Carousel>
+    <div className="w-full max-w-sm mx-auto">
+      <Card className="w-full shadow-2xl rounded-2xl overflow-hidden bg-primary text-primary-foreground">
+        <CardHeader className="p-6 space-y-4">
+          <div className="flex justify-between items-center">
+             <h1 className="text-2xl font-bold">Attendance</h1>
+             <Button variant="ghost" size="icon">
+                <Bell className="w-6 h-6" />
+             </Button>
           </div>
-        )}
+          <div className="relative">
+            <Input type="search" placeholder="Search..." className="bg-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/70 border-0 rounded-full pl-10" />
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary-foreground/70" />
+          </div>
+        </CardHeader>
+        <CardContent className="p-6 bg-card text-card-foreground rounded-t-3xl space-y-6">
+          <DigitalClock />
 
-        <div className="space-y-4">
-          <Select onValueChange={handleStoreChange} value={selectedStoreId || ""}>
-            <SelectTrigger className="w-full text-base h-12 rounded-xl">
-              <SelectValue placeholder="1. Pilih Toko Anda" />
-            </SelectTrigger>
-            <SelectContent>
-              {stores.map(store => (
-                <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select onValueChange={handleCrewChange} value={selectedCrewId || ""} disabled={!selectedStoreId}>
-            <SelectTrigger className="w-full text-base h-12 rounded-xl">
-              <SelectValue placeholder="2. Pilih Nama Anda" />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredCrewMembers.map(crew => (
-                <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select onValueChange={setSelectedShift} value={selectedShift || ""} disabled={!selectedCrewId}>
-            <SelectTrigger className="w-full text-base h-12 rounded-xl">
-              <SelectValue placeholder="3. Pilih Shift Anda" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Shift 1">Shift 1</SelectItem>
-              <SelectItem value="Shift 2">Shift 2</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <Alert className="rounded-xl">
-          <MapPin className="h-4 w-4" />
-          <AlertTitle className="font-semibold">Status Lokasi</AlertTitle>
-          {getStatus()}
-        </Alert>
-
-        {selectedCrewId && (
-          <div className="space-y-4 text-center">
-            <canvas ref={canvasRef} className="hidden" />
-
-            {capturedImage ? (
-              <div className="relative group w-full aspect-[4/3] mx-auto">
-                <img src={capturedImage} alt="Selfie" className="rounded-xl object-cover w-full h-full" />
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
-                    <Button onClick={handleRetakePhoto} variant="secondary" size="sm" disabled={isProcessing}>
-                        <RefreshCcw className="mr-2 h-4 w-4" />
-                        Ambil Ulang
+          <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
+            <DialogTrigger asChild>
+                <button
+                    className="w-40 h-40 rounded-full bg-card border-[6px] border-primary flex flex-col items-center justify-center mx-auto transition-transform active:scale-95 disabled:opacity-50"
+                    disabled={!selectedCrewId || !selectedShift || isProcessing}
+                >
+                    <Fingerprint className="w-16 h-16 text-primary" />
+                    <span className="text-lg font-semibold text-primary mt-1">Check In</span>
+                </button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Ambil Foto</DialogTitle>
+                </DialogHeader>
+                 <div className="space-y-4 text-center">
+                    <canvas ref={canvasRef} className="hidden" />
+                    <div className="relative w-full aspect-[4/3] bg-muted rounded-xl overflow-hidden flex items-center justify-center">
+                      <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} autoPlay muted playsInline />
+                      {hasCameraPermission === false && (
+                        <Alert variant="destructive" className="m-4">
+                          <Camera className="h-4 w-4" />
+                          <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
+                          <AlertDescription>
+                            Izinkan akses kamera di browser Anda untuk melanjutkan.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      {hasCameraPermission === null && (
+                        <div className="absolute flex flex-col items-center gap-2 text-muted-foreground">
+                            <Loader className="animate-spin h-6 w-6" />
+                            <p className="text-sm">Memulai kamera...</p>
+                        </div>
+                      )}
+                    </div>
+                    <Button onClick={handleTakePhoto} size="lg" className="w-full rounded-xl" disabled={hasCameraPermission !== true || isProcessing}>
+                      <Camera className="mr-2" />
+                      Ambil Foto
                     </Button>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="relative w-full aspect-[4/3] bg-muted rounded-xl overflow-hidden flex items-center justify-center">
-                  <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} autoPlay muted playsInline />
-                  {hasCameraPermission === false && (
-                     <Alert variant="destructive" className="m-4">
-                       <Camera className="h-4 w-4" />
-                       <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
-                       <AlertDescription>
-                         Izinkan akses kamera di browser Anda untuk melanjutkan.
-                       </AlertDescription>
-                     </Alert>
-                  )}
-                   {hasCameraPermission === null && selectedCrewId && (
-                     <div className="absolute flex flex-col items-center gap-2 text-muted-foreground">
-                        <Loader className="animate-spin h-6 w-6" />
-                        <p className="text-sm">Memulai kamera...</p>
-                     </div>
-                   )}
-                </div>
-                 <Button onClick={handleTakePhoto} size="lg" className="w-full rounded-xl" disabled={hasCameraPermission !== true || isProcessing}>
-                   <Camera className="mr-2" />
-                   4. Ambil Foto
-                 </Button>
-              </div>
-            )}
-          </div>
-        )}
+            </DialogContent>
+          </Dialog>
 
-      </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row justify-between gap-4 p-6 bg-muted/50">
-        <Button className="w-full h-16 text-lg rounded-xl" disabled={!canClockIn || isProcessing} onClick={() => handleClockAction('in')}>
-          {isProcessing && (!canClockOut) ? <Loader className="animate-spin" /> : <LogIn className="mr-2 h-6 w-6" />}
-          Clock In
-        </Button>
-        <Button variant="secondary" className="w-full h-16 text-lg rounded-xl" disabled={!canClockOut || isProcessing} onClick={() => handleClockAction('out')}>
-          {isProcessing && canClockOut ? <Loader className="animate-spin" /> : <LogOut className="mr-2 h-6 w-6" />}
-          Clock Out
-        </Button>
-      </CardFooter>
-    </Card>
+          {capturedImage && (
+             <div className="relative group w-24 h-24 mx-auto rounded-full overflow-hidden border-2 border-primary">
+                <img src={capturedImage} alt="Selfie" className="object-cover w-full h-full" />
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => setIsCameraOpen(true)} className="text-white">
+                        <RefreshCcw className="w-6 h-6" />
+                    </button>
+                </div>
+              </div>
+          )}
+          
+          <div className="space-y-3">
+             <p className="text-center text-muted-foreground">Choose your remote mode</p>
+             <div className="grid grid-cols-2 gap-4">
+                <Select onValueChange={handleStoreChange} value={selectedStoreId || ""}>
+                  <SelectTrigger className="w-full h-12 rounded-xl">
+                    <SelectValue placeholder="Pilih Toko" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map(store => (
+                      <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select onValueChange={handleCrewChange} value={selectedCrewId || ""} disabled={!selectedStoreId}>
+                  <SelectTrigger className="w-full h-12 rounded-xl">
+                    <SelectValue placeholder="Pilih Kru" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredCrewMembers.map(crew => (
+                      <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+             </div>
+              <Select onValueChange={setSelectedShift} value={selectedShift || ""} disabled={!selectedCrewId}>
+                <SelectTrigger className="w-full h-12 rounded-xl">
+                  <SelectValue placeholder="Pilih Shift" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Shift 1">Shift 1</SelectItem>
+                  <SelectItem value="Shift 2">Shift 2</SelectItem>
+                </SelectContent>
+              </Select>
+          </div>
+          
+           <Alert className="rounded-xl">
+            <MapPin className="h-4 w-4" />
+            <AlertTitle className="font-semibold">Status Lokasi</AlertTitle>
+            {isLocating ? <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Mendapatkan lokasi Anda...</AlertDescription> : 
+             distance !== null && distance > 1 ? <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km.</AlertDescription> :
+             <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance?.toFixed(2)} km).</AlertDescription>
+            }
+          </Alert>
+
+          <Button 
+            className="w-full h-14 text-lg rounded-xl" 
+            disabled={!canClock || isProcessing} 
+            onClick={() => handleClockAction(nextActionType)}
+          >
+            {isProcessing ? <Loader className="animate-spin" /> : (nextActionType === 'in' ? <LogIn className="mr-2 h-6 w-6" /> : <LogOut className="mr-2 h-6 w-6" />)}
+            {nextActionType === 'in' ? 'Clock In' : 'Clock Out'}
+          </Button>
+
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

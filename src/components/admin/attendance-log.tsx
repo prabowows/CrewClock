@@ -46,10 +46,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { AttendanceLog as AttendanceLogType, Store, CrewMember as CrewMemberType } from '@/lib/types';
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
+import { CalendarIcon, Camera, Users, Loader, Edit, Plus, BookUser } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { collection, getDocs, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -274,450 +274,443 @@ export default function AttendanceLog() {
   );
 
   return (
-    <div className='space-y-6 relative'>
-      {isLoading && <LoadingOverlay />}
-      <div className="flex items-center gap-4 mb-4">
-        <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              id="date"
-              variant={"outline"}
-              className={cn(
-                "w-[300px] justify-start text-left font-normal",
-                !date && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {date?.from ? (
-                date.to ? (
-                  <>
-                    {format(date.from, "LLL dd, y")} -{" "}
-                    {format(date.to, "LLL dd, y")}
-                  </>
-                ) : (
-                  format(date.from, "LLL dd, y")
-                )
-              ) : (
-                <span>Pick a date</span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              initialFocus
-              mode="range"
-              defaultMonth={selectedDateRange?.from}
-              selected={selectedDateRange}
-              onSelect={setSelectedDateRange}
-              numberOfMonths={2}
-            />
-            <div className="flex justify-end gap-2 p-4 border-t">
-                <Button variant="outline" onClick={handleCancel}>Batal</Button>
-                <Button onClick={handleApplyDateRange}>Oke</Button>
-            </div>
-          </PopoverContent>
-        </Popover>
-        <Select value={selectedStoreId} onValueChange={setSelectedStoreId} disabled={isLoading}>
-            <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Select a store" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="all">Semua Toko</SelectItem>
-                {stores.map(store => (
-                    <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
-      </div>
-
-      <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedSummary(null)}>
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center"><Users className="mr-3"/>Ringkasan Kehadiran</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="border rounded-lg">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Crew Member</TableHead>
-                                <TableHead>Store</TableHead>
-                                <TableHead>Total Clock In</TableHead>
-                                <TableHead className="text-right">Action</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {attendanceSummary.length > 0 ? attendanceSummary.map((summary) => (
-                                <TableRow key={summary.crewMemberId}>
-                                    <TableCell className='font-medium'>{summary.crewMemberName}</TableCell>
-                                    <TableCell>{summary.storeName}</TableCell>
-                                    <TableCell>{summary.clockInCount} kali</TableCell>
-                                    <TableCell className='text-right'>
-                                        <DialogTrigger asChild>
-                                            <Button variant="outline" size="sm" onClick={() => setSelectedSummary(summary)}>
-                                                Lihat Detail
-                                            </Button>
-                                        </DialogTrigger>
-                                    </TableCell>
-                                </TableRow>
-                            )) : (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
-                                        Tidak ada ringkasan untuk periode ini.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
-        {selectedSummary && (
-             <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle>Detail Kehadiran: {selectedSummary.crewMemberName}</DialogTitle>
-                    <DialogDescription>
-                       {selectedSummary.storeName}
-                       {' - '}
-                        {date?.from && format(date.from, "LLL dd, y")}
-                        {date?.to && date.from?.getTime() !== date.to?.getTime() ? ` s/d ${format(date.to, "LLL dd, y")}` : ''}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="mt-4 max-h-[60vh] overflow-y-auto">
-                   <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Waktu</TableHead>
-                                <TableHead>Shift</TableHead>
-                                <TableHead className='text-right'>Tindakan</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {selectedSummary.logs.map(log => (
-                                <TableRow key={log.id}>
-                                    <TableCell>{log.timestamp.toLocaleString()}</TableCell>
-                                    <TableCell>{log.shift || '-'}</TableCell>
-                                    <TableCell className='text-right'>
-                                       <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
-                                         {log.type === "in" ? "Clock In" : "Clock Out"}
-                                       </Badge>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                   </Table>
-                </div>
-            </DialogContent>
-        )}
-      </Dialog>
-      
-      <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForNotes(null)}>
-        <div>
-          <h3 className="text-xl font-semibold mb-4 text-primary">Log Lengkap</h3>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Photo</TableHead>
-                  <TableHead>Crew Member</TableHead>
-                  <TableHead>Store</TableHead>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Shift</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.length > 0 ? filteredLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                       <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
-                          <DialogTrigger asChild>
-                              <button
-                                  onClick={(e) => { e.stopPropagation(); setSelectedLogForImage(log); }}
-                                  className="w-16 h-16 rounded-md overflow-hidden bg-muted cursor-pointer block"
-                              >
-                                {log.photoURL ? (
-                                    <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={64} height={64} className="object-cover w-full h-full" />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <Camera className="w-6 h-6 text-muted-foreground" />
-                                    </div>
-                                )}
-                              </button>
-                          </DialogTrigger>
-                           {selectedLogForImage && selectedLogForImage.id === log.id && (
-                               <DialogContent className="sm:max-w-md">
-                                   <DialogHeader>
-                                       <DialogTitle>{selectedLogForImage.crewMemberName}</DialogTitle>
-                                       <DialogDescription>
-                                           {selectedLogForImage.storeName} - {selectedLogForImage.timestamp.toLocaleString()}
-                                       </DialogDescription>
-                                   </DialogHeader>
-                                   <div className="mt-4">
-                                       {selectedLogForImage.photoURL && (
-                                           <Image src={selectedLogForImage.photoURL} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
-                                       )}
-                                       {!selectedLogForImage.photoURL && (
-                                            <div className="w-full h-64 flex items-center justify-center bg-muted rounded-lg">
-                                                <Camera className="w-12 h-12 text-muted-foreground" />
-                                            </div>
-                                       )}
-                                   </div>
-                               </DialogContent>
-                           )}
-                       </Dialog>
-                    </TableCell>
-                    <TableCell className="font-medium">{log.crewMemberName}</TableCell>
-                    <TableCell>{log.storeName}</TableCell>
-                    <TableCell>{log.timestamp.toLocaleString()}</TableCell>
-                    <TableCell>{log.shift || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
-                        {log.type === "in" ? "Clock In" : "Clock Out"}
-                      </Badge>
-                    </TableCell>
-                     <TableCell>
-                        {log.notes ? (
-                          <DialogTrigger asChild>
-                            <p onClick={() => handleOpenNotesDialog(log)} className="truncate max-w-[150px] hover:underline cursor-pointer">{log.notes}</p>
-                          </DialogTrigger>
-                        ) : (
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenNotesDialog(log)}>
-                                <Edit className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                          </DialogTrigger>
-                        )}
-                    </TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
-                      Tidak ada catatan kehadiran untuk periode ini.
-                    </TableCell>
-                  </TableRow>
+    <Card>
+      <CardHeader>
+        <CardTitle>Attendance Log</CardTitle>
+        <CardDescription>View and manage clock-in/out records.</CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-4 relative'>
+        {isLoading && <LoadingOverlay />}
+        <div className="flex flex-wrap items-center gap-4">
+          <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                id="date"
+                variant={"outline"}
+                className={cn(
+                  "w-full sm:w-[300px] justify-start text-left font-normal",
+                  !date && "text-muted-foreground"
                 )}
-              </TableBody>
-            </Table>
-          </div>
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date?.from ? (
+                  date.to ? (
+                    <>
+                      {format(date.from, "LLL dd, y")} -{" "}
+                      {format(date.to, "LLL dd, y")}
+                    </>
+                  ) : (
+                    format(date.from, "LLL dd, y")
+                  )
+                ) : (
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={selectedDateRange?.from}
+                selected={selectedDateRange}
+                onSelect={setSelectedDateRange}
+                numberOfMonths={2}
+              />
+              <div className="flex justify-end gap-2 p-4 border-t">
+                  <Button variant="outline" onClick={handleCancel}>Batal</Button>
+                  <Button onClick={handleApplyDateRange}>Oke</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Select value={selectedStoreId} onValueChange={setSelectedStoreId} disabled={isLoading}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="Select a store" />
+              </SelectTrigger>
+              <SelectContent>
+                  <SelectItem value="all">Semua Toko</SelectItem>
+                  {stores.map(store => (
+                      <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+                  ))}
+              </SelectContent>
+          </Select>
         </div>
 
-        {selectedLogForNotes && (
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add/Edit Note</DialogTitle>
-              <DialogDescription>
-                Add a note for {selectedLogForNotes.crewMemberName} at {selectedLogForNotes.timestamp.toLocaleString()}.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="notes">Note</Label>
-                <Textarea
-                  id="notes"
-                  value={noteInput}
-                  onChange={(e) => setNoteInput(e.target.value)}
-                  placeholder="e.g., Crew sakit, shift digantikan oleh..."
-                />
-              </div>
+        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedSummary(null)}>
+            <div className="border rounded-lg">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Crew Member</TableHead>
+                            <TableHead>Store</TableHead>
+                            <TableHead>Total Clock In</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {attendanceSummary.length > 0 ? attendanceSummary.map((summary) => (
+                            <TableRow key={summary.crewMemberId}>
+                                <TableCell className='font-medium'>{summary.crewMemberName}</TableCell>
+                                <TableCell>{summary.storeName}</TableCell>
+                                <TableCell>{summary.clockInCount} kali</TableCell>
+                                <TableCell className='text-right'>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm" onClick={() => setSelectedSummary(summary)}>
+                                            Lihat Detail
+                                        </Button>
+                                    </DialogTrigger>
+                                </TableCell>
+                            </TableRow>
+                        )) : (
+                            <TableRow>
+                                <TableCell colSpan={4} className="h-24 text-center">
+                                    Tidak ada ringkasan untuk periode ini.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSelectedLogForNotes(null)}>Batal</Button>
-              <Button onClick={handleSaveNote}>Simpan Catatan</Button>
-            </DialogFooter>
-          </DialogContent>
-        )}
-      </Dialog>
-      
-      <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
-        <DialogTrigger asChild>
-            <Button
-                className="fixed bottom-16 right-8 h-16 w-16 rounded-full shadow-lg"
-            >
-                <Plus className="h-8 w-8" />
-                <span className="sr-only">Add Manual Entry</span>
-            </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-                <DialogTitle>Entri Kehadiran Manual</DialogTitle>
+          {selectedSummary && (
+              <DialogContent className="sm:max-w-lg">
+                  <DialogHeader>
+                      <DialogTitle>Detail Kehadiran: {selectedSummary.crewMemberName}</DialogTitle>
+                      <DialogDescription>
+                        {selectedSummary.storeName}
+                        {' - '}
+                          {date?.from && format(date.from, "LLL dd, y")}
+                          {date?.to && date.from?.getTime() !== date.to?.getTime() ? ` s/d ${format(date.to, "LLL dd, y")}` : ''}
+                      </DialogDescription>
+                  </DialogHeader>
+                  <div className="mt-4 max-h-[60vh] overflow-y-auto">
+                    <Table>
+                          <TableHeader>
+                              <TableRow>
+                                  <TableHead>Waktu</TableHead>
+                                  <TableHead>Shift</TableHead>
+                                  <TableHead className='text-right'>Tindakan</TableHead>
+                              </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                              {selectedSummary.logs.map(log => (
+                                  <TableRow key={log.id}>
+                                      <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                                      <TableCell>{log.shift || '-'}</TableCell>
+                                      <TableCell className='text-right'>
+                                        <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
+                                          {log.type === "in" ? "Clock In" : "Clock Out"}
+                                        </Badge>
+                                      </TableCell>
+                                  </TableRow>
+                              ))}
+                          </TableBody>
+                    </Table>
+                  </div>
+              </DialogContent>
+          )}
+        </Dialog>
+        
+        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForNotes(null)}>
+          <div>
+            <h3 className="text-lg font-semibold my-4 text-foreground">Log Lengkap</h3>
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Photo</TableHead>
+                    <TableHead>Crew Member</TableHead>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLogs.length > 0 ? filteredLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
+                            <DialogTrigger asChild>
+                                <div
+                                    onClick={(e) => { e.stopPropagation(); setSelectedLogForImage(log); }}
+                                    className="w-12 h-12 rounded-md overflow-hidden bg-muted cursor-pointer block"
+                                >
+                                  {log.photoURL ? (
+                                      <Image src={log.photoURL} alt={`Photo of ${log.crewMemberName}`} width={48} height={48} className="object-cover w-full h-full" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <Camera className="w-5 h-5 text-muted-foreground" />
+                                      </div>
+                                  )}
+                                </div>
+                            </DialogTrigger>
+                            {selectedLogForImage && selectedLogForImage.id === log.id && (
+                                <DialogContent className="sm:max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle>{selectedLogForImage.crewMemberName}</DialogTitle>
+                                        <DialogDescription>
+                                            {selectedLogForImage.storeName} - {selectedLogForImage.timestamp.toLocaleString()}
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="mt-4">
+                                        {selectedLogForImage.photoURL && (
+                                            <Image src={selectedLogForImage.photoURL} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
+                                        )}
+                                        {!selectedLogForImage.photoURL && (
+                                              <div className="w-full h-64 flex items-center justify-center bg-muted rounded-lg">
+                                                  <Camera className="w-12 h-12 text-muted-foreground" />
+                                              </div>
+                                        )}
+                                    </div>
+                                </DialogContent>
+                            )}
+                        </Dialog>
+                      </TableCell>
+                      <TableCell className="font-medium">{log.crewMemberName}</TableCell>
+                      <TableCell>{log.timestamp.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={log.type === "in" ? "default" : "secondary"} className={log.type === "in" ? "bg-green-600 text-white" : ""}>
+                          {log.type === "in" ? "Clock In" : "Clock Out"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                          <DialogTrigger asChild>
+                            <div onClick={() => handleOpenNotesDialog(log)} className="cursor-pointer">
+                              {log.notes ? (
+                                  <p className="truncate max-w-[150px] hover:underline">{log.notes}</p>
+                              ) : (
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Edit className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              )}
+                            </div>
+                          </DialogTrigger>
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">
+                        Tidak ada catatan kehadiran untuk periode ini.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {selectedLogForNotes && (
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add/Edit Note</DialogTitle>
                 <DialogDescription>
-                    Masukkan detail kehadiran untuk kru yang tidak dapat clock-in/out.
+                  Add a note for {selectedLogForNotes.crewMemberName} at {selectedLogForNotes.timestamp.toLocaleString()}.
                 </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onManualEntrySubmit)} className="space-y-4 pt-4">
-                    <FormField
-                      control={form.control}
-                      name="storeId"
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Store</FormLabel>
-                              <Select 
-                                onValueChange={(value) => {
-                                  field.onChange(value);
-                                  setManualEntryStore(value);
-                                  form.setValue('crewMemberId', '');
-                                }} 
-                                value={field.value}
-                              >
-                                  <FormControl>
-                                      <SelectTrigger>
-                                          <SelectValue placeholder="Pilih toko" />
-                                      </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                      {stores.map(store => (
-                                          <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-                                      ))}
-                                  </SelectContent>
-                              </Select>
-                              <FormMessage />
-                          </FormItem>
-                      )}
-                    />
-                    <FormField
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="notes">Note</Label>
+                  <Textarea
+                    id="notes"
+                    value={noteInput}
+                    onChange={(e) => setNoteInput(e.target.value)}
+                    placeholder="e.g., Crew sakit, shift digantikan oleh..."
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSelectedLogForNotes(null)}>Batal</Button>
+                <Button onClick={handleSaveNote}>Simpan Catatan</Button>
+              </DialogFooter>
+            </DialogContent>
+          )}
+        </Dialog>
+        
+        <Dialog open={isManualEntryOpen} onOpenChange={setIsManualEntryOpen}>
+          <DialogTrigger asChild>
+              <Button
+                  className="fixed bottom-8 right-8 h-14 w-14 rounded-full shadow-lg"
+              >
+                  <Plus className="h-7 w-7" />
+                  <span className="sr-only">Add Manual Entry</span>
+              </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                  <DialogTitle>Entri Kehadiran Manual</DialogTitle>
+                  <DialogDescription>
+                      Masukkan detail kehadiran untuk kru yang tidak dapat clock-in/out.
+                  </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onManualEntrySubmit)} className="space-y-4 pt-4">
+                      <FormField
                         control={form.control}
-                        name="crewMemberId"
+                        name="storeId"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Crew Member</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value} disabled={!manualEntryStore}>
+                                <FormLabel>Store</FormLabel>
+                                <Select 
+                                  onValueChange={(value) => {
+                                    field.onChange(value);
+                                    setManualEntryStore(value);
+                                    form.setValue('crewMemberId', '');
+                                  }} 
+                                  value={field.value}
+                                >
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Pilih seorang kru" />
+                                            <SelectValue placeholder="Pilih toko" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {manualEntryFilteredCrew.map(crew => (
-                                            <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
+                                        {stores.map(store => (
+                                            <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
                             </FormItem>
                         )}
-                    />
-                     <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                            control={form.control}
-                            name="date"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-col">
-                                    <FormLabel>Tanggal</FormLabel>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <FormControl>
-                                                <Button
-                                                    variant={"outline"}
-                                                    className={cn(
-                                                        "pl-3 text-left font-normal",
-                                                        !field.value && "text-muted-foreground"
-                                                    )}
-                                                >
-                                                    {field.value ? format(field.value, "PPP") : <span>Pilih tanggal</span>}
-                                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                                </Button>
-                                            </FormControl>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0" align="start">
-                                            <Calendar
-                                                mode="single"
-                                                selected={field.value}
-                                                onSelect={field.onChange}
-                                                initialFocus
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="time"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Waktu (HH:MM)</FormLabel>
-                                    <FormControl>
-                                        <Input type="time" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
-                     <FormField
-                        control={form.control}
-                        name="type"
-                        render={({ field }) => (
-                            <FormItem className="space-y-3">
-                                <FormLabel>Tipe</FormLabel>
-                                <FormControl>
-                                    <RadioGroup
-                                        onValueChange={field.onChange}
-                                        defaultValue={field.value}
-                                        className="flex gap-4"
-                                    >
-                                        <FormItem className="flex items-center space-x-2">
-                                            <FormControl><RadioGroupItem value="in" /></FormControl>
-                                            <FormLabel className="font-normal">Clock In</FormLabel>
-                                        </FormItem>
-                                        <FormItem className="flex items-center space-x-2">
-                                            <FormControl><RadioGroupItem value="out" /></FormControl>
-                                            <FormLabel className="font-normal">Clock Out</FormLabel>
-                                        </FormItem>
-                                    </RadioGroup>
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="shift"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Shift</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Pilih shift" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="Shift 1">Shift 1</SelectItem>
-                                        <SelectItem value="Shift 2">Shift 2</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="notes"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Catatan (Opsional)</FormLabel>
-                                <FormControl>
-                                    <Textarea placeholder="e.g., Lupa clock in pagi ini" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem> 
-                        )}
-                    />
-                    <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>Batal</Button>
-                        <Button type="submit">Simpan</Button>
-                    </DialogFooter>
-                </form>
-            </Form>
-        </DialogContent>
-      </Dialog>
-    </div>
+                      />
+                      <FormField
+                          control={form.control}
+                          name="crewMemberId"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Crew Member</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value} disabled={!manualEntryStore}>
+                                      <FormControl>
+                                          <SelectTrigger>
+                                              <SelectValue placeholder="Pilih seorang kru" />
+                                          </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                          {manualEntryFilteredCrew.map(crew => (
+                                              <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
+                                          ))}
+                                      </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                              control={form.control}
+                              name="date"
+                              render={({ field }) => (
+                                  <FormItem className="flex flex-col">
+                                      <FormLabel>Tanggal</FormLabel>
+                                      <Popover>
+                                          <PopoverTrigger asChild>
+                                              <FormControl>
+                                                  <Button
+                                                      variant={"outline"}
+                                                      className={cn(
+                                                          "pl-3 text-left font-normal",
+                                                          !field.value && "text-muted-foreground"
+                                                      )}
+                                                  >
+                                                      {field.value ? format(field.value, "PPP") : <span>Pilih tanggal</span>}
+                                                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                  </Button>
+                                              </FormControl>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-auto p-0" align="start">
+                                              <Calendar
+                                                  mode="single"
+                                                  selected={field.value}
+                                                  onSelect={field.onChange}
+                                                  initialFocus
+                                              />
+                                          </PopoverContent>
+                                      </Popover>
+                                      <FormMessage />
+                                  </FormItem>
+                              )}
+                          />
+                          <FormField
+                              control={form.control}
+                              name="time"
+                              render={({ field }) => (
+                                  <FormItem>
+                                      <FormLabel>Waktu (HH:MM)</FormLabel>
+                                      <FormControl>
+                                          <Input type="time" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                  </FormItem>
+                              )}
+                          />
+                      </div>
+                      <FormField
+                          control={form.control}
+                          name="type"
+                          render={({ field }) => (
+                              <FormItem className="space-y-3">
+                                  <FormLabel>Tipe</FormLabel>
+                                  <FormControl>
+                                      <RadioGroup
+                                          onValueChange={field.onChange}
+                                          defaultValue={field.value}
+                                          className="flex gap-4"
+                                      >
+                                          <FormItem className="flex items-center space-x-2">
+                                              <FormControl><RadioGroupItem value="in" /></FormControl>
+                                              <FormLabel className="font-normal">Clock In</FormLabel>
+                                          </FormItem>
+                                          <FormItem className="flex items-center space-x-2">
+                                              <FormControl><RadioGroupItem value="out" /></FormControl>
+                                              <FormLabel className="font-normal">Clock Out</FormLabel>
+                                          </FormItem>
+                                      </RadioGroup>
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <FormField
+                          control={form.control}
+                          name="shift"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Shift</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl>
+                                          <SelectTrigger>
+                                              <SelectValue placeholder="Pilih shift" />
+                                          </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                          <SelectItem value="Shift 1">Shift 1</SelectItem>
+                                          <SelectItem value="Shift 2">Shift 2</SelectItem>
+                                      </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <FormField
+                          control={form.control}
+                          name="notes"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Catatan (Opsional)</FormLabel>
+                                  <FormControl>
+                                      <Textarea placeholder="e.g., Lupa clock in pagi ini" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem> 
+                          )}
+                      />
+                      <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setIsManualEntryOpen(false)}>Batal</Button>
+                          <Button type="submit">Simpan</Button>
+                      </DialogFooter>
+                  </form>
+              </Form>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
   );
 }
-
-    
