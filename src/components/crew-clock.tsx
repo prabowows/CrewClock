@@ -375,7 +375,7 @@ export default function CrewClock() {
                 <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
                   <DialogTrigger asChild>
                       <button
-                          className="w-40 h-40 rounded-full bg-card border-[6px] border-[#e42841] flex flex-col items-center justify-center mx-auto transition-transform active:scale-95 disabled:opacity-50"
+                          className="w-40 h-40 rounded-full bg-card border-[6px] border-[#e42841] flex flex-col items-center justify-center mx-auto transition-transform active:scale-95"
                       >
                           <Camera className="w-16 h-16 text-[#e42841]" />
                           <span className="text-lg font-semibold text-[#e42841] mt-1">Ambil Foto</span>
