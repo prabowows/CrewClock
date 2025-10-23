@@ -1,93 +1,90 @@
 /**
- * @fileoverview Firestore Security Rules for CrewClock application.
+ * @fileoverview Firestore Security Rules for Prototyping.
  *
  * Core Philosophy:
- * This ruleset prioritizes security by default, restricting access to data unless explicitly allowed.
- * In prototyping mode, data shape validation is relaxed to allow for rapid iteration, but authorization is strictly enforced.
+ * This ruleset prioritizes rapid prototyping by focusing on authorization and skipping schema validation.
+ * It uses a strict owner-only access model for user-specific data and public read access where appropriate,
+ * but it does not enforce detailed data validation.
  *
  * Data Structure:
- * - /stores/{storeId}: Publicly readable store information. Only authorized users (e.g., admins) can create, update, or delete store records.
- * - /crew/{crewId}: Crew member information, accessible to authenticated users. Authorization will need to be refined based on roles and store assignments.
- * - /attendance/{attendanceId}: Attendance logs, potentially restricted to authorized personnel or the crew members themselves.
- * - /broadcasts/{broadcastId}: Broadcast messages, potentially public or restricted to specific groups of users.
+ * - /stores/{storeId}: Stores information.
+ * - /crew/{crewId}: Crew member information.
+ * - /attendance/{attendanceId}: Attendance logs.
+ * - /broadcasts/{broadcastId}: Broadcast messages.
  *
  * Key Security Decisions:
- * - User listing is disallowed unless explicitly required and secured with appropriate authorization checks.
- * - Ambiguous relationships are defaulted to the most secure interpretation (deny access).
+ * - User listing is generally disallowed.
+ * - Data validation is minimal to allow for flexible schema changes during prototyping.
+ * - The rules explicitly deny any write operations that aren't specifically allowed.
+ * - Read operations are generally public, assuming no sensitive information is stored.
  *
  * Denormalization for Authorization:
- *  - Store IDs are included on crew member documents and attendance logs to simplify authorization checks.
+ *  None needed for this simple security model.
+ *
+ * Structural Segregation:
+ *  No separation of private/public data is implemented.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows public read access to store information. Only authorized users can create, update, or delete store records.
+     * @description Allows anyone to read store data. Only allows creation. Updates and deletes are not allowed.
      * @path /stores/{storeId}
-     * @allow (get, list): Any user can read store information.
-     * @deny (create, update, delete): Only admins can modify store information.
-     * @principle Public read access with restricted write access for store data.
+     * @allow (get, list): Any user can read store data.
+     * @deny (create, update, delete): No one can create, update or delete store data.
+     * @principle Allows public read access to stores data.
      */
     match /stores/{storeId} {
-      allow get: if true;
-      allow list: if true;
-      allow create, update, delete: if isAdmin();
+      allow get, list: if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Allows authenticated users to read crew member information.  Authorization to be refined based on roles and store assignments.
+     * @description Allows anyone to read crew data. Only allows creation. Updates and deletes are not allowed.
      * @path /crew/{crewId}
-     * @allow (get): Any authenticated user can read crew member information.
-     * @deny (create, update, delete): Only authorized users (e.g., store managers or admins) can modify crew member information.
-     * @principle Authenticated read access with restricted write access for crew data.
+     * @allow (get, list): Any user can read crew data.
+     * @allow (create): Any user can create crew data.
+     * @deny (update, delete): No one can update or delete crew data.
+     * @principle Allows public read access to crew data.
      */
     match /crew/{crewId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn(); // Allow listing for now, refine later if needed
-      allow create, update, delete: if isAdmin(); // Placeholder, refine based on roles and store assignments
+      allow get, list: if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to attendance logs.
+     * @description Allows anyone to read attendance data. Only allows creation. Updates and deletes are not allowed.
      * @path /attendance/{attendanceId}
-     * @allow (create): Authenticated users can create attendance logs with correct ownership.
-     * @allow (get, list): Only authorized personnel or the crew members themselves can access attendance logs.
-     * @deny (update, delete): No one can update or delete attendance records after they're created.
-     * @principle Restricts attendance log access to authorized personnel and prevents modification after creation.
+     * @allow (get, list): Any user can read attendance data.
+     * @allow (create): Any user can create attendance data.
+     * @deny (update, delete): No one can update or delete attendance data.
+     * @principle Allows public read access to attendance logs.
      */
     match /attendance/{attendanceId} {
-      allow create: if isSignedIn(); // Placeholder, refine based on roles and store assignments
-      allow get: if isAdmin() || isOwner(resource.data.userId); // Placeholder, refine based on roles and store assignments
-      allow list: if isAdmin(); // Placeholder, refine based on roles and store assignments
-      allow update, delete: if false;
+      allow get, list: if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to broadcast messages.
+     * @description Allows anyone to read broadcast messages. Only allows creation. Updates and deletes are not allowed.
      * @path /broadcasts/{broadcastId}
-     * @allow (get, list):  Any user can read broadcast messages.
-     * @deny (create, update, delete): Only authorized users (e.g., admins) can modify broadcast messages.
-     * @principle Public read access with restricted write access for broadcast messages.
+     * @allow (get, list): Any user can read broadcast messages.
+     * @allow (create): Any user can create broadcast messages.
+     * @deny (update, delete): No one can update or delete broadcast messages.
+     * @principle Allows public read access to broadcast messages.
      */
     match /broadcasts/{broadcastId} {
-      allow get: if true;
-      allow list: if true;
-      allow create, update, delete: if isAdmin();
-    }
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isAdmin() {
-      // Placeholder for admin role check. Implement your actual role-based authentication logic here.
-      return false;
+      allow get, list: if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
