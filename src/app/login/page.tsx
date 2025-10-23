@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,9 +18,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useFirebaseApp } from '@/firebase';
+import { useFirebaseApp, useUser } from '@/firebase';
 import Header from '@/components/header';
 import { Loader } from 'lucide-react';
+import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
 
 const loginSchema = z.object({
   email: z.string().email('Alamat email tidak valid.'),
@@ -35,6 +36,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const app = useFirebaseApp();
   const auth = getAuth(app);
+  const { user, isUserLoading, userError } = useUser();
 
   const {
     register,
@@ -42,26 +44,38 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: 'admin@example.com',
+      password: 'password123',
+    }
   });
 
-  const onSubmit = async (data: LoginFormValues) => {
-    setIsLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+  useEffect(() => {
+    if (!isUserLoading && user) {
       toast({
         title: 'Login Berhasil!',
         description: 'Mengarahkan ke dasbor admin...',
       });
       router.push('/admin');
-    } catch (error: any) {
-      console.error('Login failed:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Login Gagal',
-        description: 'Email atau kata sandi salah. Silakan coba lagi.',
-      });
-      setIsLoading(false);
     }
+  }, [user, isUserLoading, router, toast]);
+
+  useEffect(() => {
+      if (userError) {
+          setIsLoading(false);
+          toast({
+              variant: 'destructive',
+              title: 'Login Gagal',
+              description: 'Email atau kata sandi salah. Silakan coba lagi.',
+          });
+      }
+  }, [userError, toast]);
+
+
+  const onSubmit = (data: LoginFormValues) => {
+    setIsLoading(true);
+    // Non-blocking sign-in. The useEffect above will handle success/error.
+    initiateEmailSignIn(auth, data.email, data.password);
   };
 
   return (
@@ -84,7 +98,7 @@ export default function LoginPage() {
                   type="email"
                   placeholder="admin@example.com"
                   {...register('email')}
-                  disabled={isLoading}
+                  disabled={isLoading || isUserLoading}
                 />
                 {errors.email && (
                   <p className="text-sm text-destructive">{errors.email.message}</p>
@@ -96,7 +110,7 @@ export default function LoginPage() {
                   id="password"
                   type="password"
                   {...register('password')}
-                  disabled={isLoading}
+                  disabled={isLoading || isUserLoading}
                 />
                 {errors.password && (
                   <p className="text-sm text-destructive">{errors.password.message}</p>
@@ -104,8 +118,8 @@ export default function LoginPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading && <Loader className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full" disabled={isLoading || isUserLoading}>
+                {(isLoading || isUserLoading) && <Loader className="mr-2 h-4 w-4 animate-spin" />}
                 Masuk
               </Button>
             </CardFooter>

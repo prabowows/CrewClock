@@ -127,15 +127,15 @@ async function seedDatabase() {
     }
 
 
+    console.log("\nSeeding collections... This can be skipped if data already exists.");
     // Seed stores
-    console.log("\nSeeding collections...");
     for (const store of stores) {
         try {
             const { id, ...data } = store;
             await setDoc(doc(db, "stores", id), data);
             console.log(`- Seeded store: ${store.name}`);
         } catch (error) {
-            console.error(`Error seeding store ${store.name}:`, error);
+            console.error(`Error seeding store ${store.name}:`, error.message);
         }
     }
     
@@ -147,7 +147,7 @@ async function seedDatabase() {
             await setDoc(doc(db, "crew", id), crewData);
             console.log(`- Seeded crew member: ${crewData.name}`);
         } catch (error) {
-            console.error(`Error seeding crew member ${member.firstName}:`, error);
+            console.error(`Error seeding crew member ${member.firstName}:`, error.message);
         }
     }
 
@@ -160,7 +160,7 @@ async function seedDatabase() {
             await setDoc(doc(db, "attendance", id), { ...data, timestamp: firestoreTimestamp });
             console.log(`- Seeded attendance log: ${log.id}`);
         } catch (error) {
-            console.error(`Error seeding attendance log ${log.id}:`, error);
+            console.error(`Error seeding attendance log ${log.id}:`, error.message);
         }
     }
 
@@ -172,7 +172,7 @@ async function seedDatabase() {
             await setDoc(doc(db, "broadcasts", id), { ...data, timestamp: firestoreTimestamp });
             console.log(`- Seeded broadcast message: ${message.id}`);
         } catch (error) {
-            console.error(`Error seeding broadcast message ${message.id}:`, error);
+            console.error(`Error seeding broadcast message ${message.id}:`, error.message);
         }
     }
 
