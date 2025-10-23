@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -5,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { getAuth } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +22,6 @@ import {
 import { useFirebaseApp, useUser } from '@/firebase';
 import Header from '@/components/header';
 import { Loader } from 'lucide-react';
-import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
 
 const loginSchema = z.object({
   email: z.string().email('Alamat email tidak valid.'),
@@ -36,7 +36,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const app = useFirebaseApp();
   const auth = getAuth(app);
-  const { user, isUserLoading, userError } = useUser();
+  const { user, isUserLoading } = useUser();
 
   const {
     register,
@@ -60,22 +60,25 @@ export default function LoginPage() {
     }
   }, [user, isUserLoading, router, toast]);
 
-  useEffect(() => {
-      if (userError) {
-          setIsLoading(false);
-          toast({
-              variant: 'destructive',
-              title: 'Login Gagal',
-              description: 'Email atau kata sandi salah. Silakan coba lagi.',
-          });
-      }
-  }, [userError, toast]);
-
-
-  const onSubmit = (data: LoginFormValues) => {
+  const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
-    // Non-blocking sign-in. The useEffect above will handle success/error.
-    initiateEmailSignIn(auth, data.email, data.password);
+    try {
+      await signInWithEmailAndPassword(auth, data.email, data.password);
+      // The useEffect above will handle the redirect on successful login.
+    } catch (error: any) {
+      let description = 'Terjadi kesalahan saat mencoba masuk. Silakan coba lagi.';
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        description = 'Email atau kata sandi yang Anda masukkan salah.';
+      }
+      
+      toast({
+        variant: 'destructive',
+        title: 'Login Gagal',
+        description: description,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
