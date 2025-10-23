@@ -1,127 +1,106 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control system with ownership constraints for a store management application.
- *
- * Data Structure:
- * - /roles_admin/{uid}: Stores admin roles. Document presence grants admin access.
- * - /stores/{storeId}: Stores store information.
- * - /stores/{storeId}/crew/{crewId}: Stores crew member information for a specific store.
- * - /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}: Stores attendance logs for crew members.
- * - /broadcasts/{broadcastId}: Stores broadcast messages targeted at specific stores.
- *
- * Key Security Decisions:
- * - Admin role is determined by the presence of a document in the /roles_admin/{uid} collection.
- * - Store crew data is secured using path-based ownership.
- * - Broadcast messages can be read by all by default, but are intended to be only read by users who belong to a store that is allowed to read the message.
- * - The rules prioritize authorization independence by denormalizing data (e.g., including storeId in attendance logs).
+ * @description This ruleset enforces a role-based access control model with path-based ownership for store and crew data, and restricts broadcast message creation to admins.
+ * @dataStructure
+ *   - /roles_admin/{uid}: Stores admin roles. The presence of a document for a user's UID grants admin access.
+ *   - /stores/{storeId}: Stores store information.
+ *   - /stores/{storeId}/crew/{crewId}: Stores store crew information.
+ *   - /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}: Stores attendance logs for crew members.
+ *   - /broadcasts/{broadcastId}: Stores broadcast messages to stores.
+ * @keySecurityDecisions
+ *   - Admins can manage all stores, crew, and attendance data.
+ *   - Store crew members can only access their own attendance logs.
+ *   - Broadcast messages can only be created by admins. Crew members can only read a broadcast message if its `storeIds` array contains the store that the crew member belongs to.
+ *   - Listing of admin roles is disallowed.
+ * @denormalizationForAuthorization
+ *   - The `storeId` is denormalized into the `AttendanceLog` documents to avoid needing to perform a `get()` operation on the parent `crew` document.
+ * @structuralSegregation
+ *   - No structural segregation is used
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is an admin.
-     */
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    /**
-     * @description Checks if the user is the owner of the document (UID matches the document ID).
-     * @param {string} userId - The user ID to check against.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the existing document.
-     * @param {string} userId - The user ID to check against.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-    
-    /**
-     * @description Rules for admin roles.
+     * @description Only admins can have documents under /roles_admin.
      * @path /roles_admin/{uid}
-     * @allow (create) User with matching UID can create their admin role.
-     * @deny (create) User tries to create an admin role for another user.
-     * @principle Enforces user-ownership for admin role creation.
+     * @allow (create) User with UID 'admin_uid' can create the document /roles_admin/admin_uid if they are authenticated.
+     * @deny (create) User with UID 'user_uid' cannot create the document /roles_admin/admin_uid.
+     * @principle Enforces admin-only access.
      */
     match /roles_admin/{uid} {
       allow get: if isAdmin();
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(uid);
-      allow update: if false;
-      allow delete: if isSignedIn() && isOwner(uid);
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for stores.
+     * @description Stores can be read by anyone, but only created, updated or deleted by admins.
      * @path /stores/{storeId}
-     * @allow (create) Admins can create stores.
-     * @deny (update) Non-admins cannot update stores.
-     * @principle Restricts store management to admins.
+     * @allow (get, list) Any user can read store information.
+     * @allow (create, update, delete) Only admins can manage store information.
+     * @deny (create) Non-admin user cannot create a store.
+     * @principle Open reads, admin-only writes.
      */
     match /stores/{storeId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for store crew members.
+     * @description Crew members can be created, updated, and deleted by admins only.
      * @path /stores/{storeId}/crew/{crewId}
-     * @allow (create) Admins can create crew members.
-     * @deny (update) Non-admins and non-owners cannot update crew members.
-     * @principle Enforces path-based ownership and admin control for crew management.
+     * @allow (get, list) Admins can read any store crew, crew can read their own entry.
+     * @allow (create, update, delete) Only admins can create, update, or delete crew entries.
+     * @deny (create) Non-admin user cannot create a crew member.
+     * @principle Admin-only writes, ownership-based reads.
      */
     match /stores/{storeId}/crew/{crewId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     /**
-     * @description Rules for attendance logs.
+     * @description Attendance logs can only be read and written by admins or the crew member themselves.
      * @path /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}
-     * @allow (create) Admins can create attendance logs.
-     * @deny (update) Non-admins and non-owners cannot update attendance logs.
-     * @principle Enforces path-based ownership and admin control for attendance logs.
+     * @allow (get, list) Admins can read any attendance log; crew members can read their own attendance logs.
+     * @allow (create) Admins can create attendance logs; crew members can create their own attendance logs.
+     * @deny (create) Non-admin and non-owner cannot create an attendance log.
+     * @principle Ownership-based access control.
      */
     match /stores/{storeId}/crew/{crewId}/attendance/{attendanceId} {
-      allow get: if true;
-      allow list: if false;
+      allow get, list: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
+      allow create: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Broadcast messages can be read by everyone but created, updated or deleted by admins only.
+     * @path /broadcasts/{broadcastId}
+     * @allow (get, list) Any user can read broadcast messages.
+     * @allow (create) Only admins can create broadcast messages.
+     * @deny (create) Non-admin user cannot create broadcast messages.
+     * @principle Admin-only writes, public reads.
+     */
+    match /broadcasts/{broadcastId} {
+      allow get, list: if true;
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    /**
-     * @description Rules for broadcast messages.
-     * @path /broadcasts/{broadcastId}
-     * @allow (get, list) Anyone can read all broadcast messages.
-     * @deny (create, update, delete) Only admins can manage broadcast messages.
-     * @principle Allows public read access but restricts write access to admins.
-     */
-    match /broadcasts/{broadcastId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
   }
 }

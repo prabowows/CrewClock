@@ -30,12 +30,12 @@ import { useFirestore } from "@/firebase";
 import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { stores as staticStores, crewMembers as staticCrew, broadcastMessages as staticBroadcasts, attendanceLogs as staticAttendanceLogs } from '@/../scripts/seed.js';
+import { stores as staticStores, crewMembers as staticCrew, broadcastMessages as staticBroadcasts } from '@/../scripts/seed.js';
 
 export default function CrewClock() {
-  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>(staticCrew.map(c => ({...c, name: `${c.firstName} ${c.lastName}`})));
+  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>(staticCrew.map((c: any) => ({...c, name: `${c.firstName} ${c.lastName}`})));
   const [stores, setStores] = useState<Store[]>(staticStores);
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>(staticBroadcasts.map(b => ({...b, timestamp: new Date(b.timestamp)})));
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>(staticBroadcasts.map((b: any) => ({...b, timestamp: new Date(b.timestamp)})));
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<string | null>(null);
@@ -153,6 +153,8 @@ export default function CrewClock() {
       }
     }, 
     async (serverError) => {
+      // With static data, this error should not be hit from this component
+      // but we keep it for when we switch back to live data.
       const permissionError = new FirestorePermissionError({
           path: `attendance where crewMemberId == ${selectedCrewId}`,
           operation: 'list',
@@ -457,3 +459,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    
