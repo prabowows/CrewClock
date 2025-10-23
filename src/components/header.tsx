@@ -8,14 +8,14 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { UserCog, LogOut, Loader } from "lucide-react";
-import { useUser } from "@/firebase/auth/use-user";
+import { useUser } from "@/firebase";
 import { getAuth, signOut } from "firebase/auth";
 import { useFirebaseApp } from "@/firebase";
 
 export default function Header() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: isUserLoading } = useUser();
+  const { user, isUserLoading } = useUser();
   const app = useFirebaseApp();
   const auth = getAuth(app);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -58,9 +58,8 @@ export default function Header() {
             <span className="text-xl font-bold">CrewClock</span>
           </Link>
           {isUserLoading ? (
-            <Button variant="outline" disabled>
-                <Loader className="h-5 w-5 mr-2 animate-spin" />
-                Memuat...
+            <Button variant="outline" size="icon" disabled>
+                <Loader className="h-5 w-5 animate-spin" />
             </Button>
           ) : user ? (
             <Button variant="outline" onClick={handleLogout} disabled={isLoggingOut}>
@@ -78,4 +77,3 @@ export default function Header() {
   );
 }
 
-    
