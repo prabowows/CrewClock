@@ -26,8 +26,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
-import { db } from "@/lib/firebase";
+import { useFirestore } from "@/firebase";
 import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function CrewClock() {
   const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
@@ -44,6 +46,7 @@ export default function CrewClock() {
   const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const db = useFirestore();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,11 +58,26 @@ export default function CrewClock() {
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!db) return;
     const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
       setAllCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'crew',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     });
     const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
       setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'stores',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     });
 
     const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
@@ -74,6 +92,13 @@ export default function CrewClock() {
             } as BroadcastMessage);
         });
         setBroadcasts(broadcastsData);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'broadcasts',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     });
 
     // Get location once on mount
@@ -101,7 +126,7 @@ export default function CrewClock() {
       unsubStores();
       unsubBroadcasts();
     };
-  }, []);
+  }, [db]);
   
   const filteredCrewMembers = useMemo(() => {
     if (!selectedStoreId) return [];
@@ -148,7 +173,7 @@ export default function CrewClock() {
   }
 
   useEffect(() => {
-    if (!selectedCrewId) {
+    if (!selectedCrewId || !db) {
       setLastAction(null);
       setCapturedImage(null);
       setSelectedShift(null);
@@ -174,21 +199,17 @@ export default function CrewClock() {
       } else {
         setLastAction(null);
       }
-    }, (error) => {
-        console.error("Firestore snapshot error:", error);
-        // This might happen if the composite index is not created yet.
-        // We can add a toast message here to inform the user.
-        if (error.code === 'failed-precondition') {
-          toast({
-            variant: "destructive",
-            title: "Indeks Firestore Diperlukan",
-            description: "Memuat status terakhir memerlukan pembuatan indeks di konsol Firebase.",
-          });
-        }
+    }, 
+    async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+          path: `attendance where crewMemberId == ${selectedCrewId}`,
+          operation: 'list',
+      });
+      errorEmitter.emit('permission-error', permissionError);
     });
   
     return () => unsubscribe();
-  }, [selectedCrewId, toast]);
+  }, [selectedCrewId, db]);
 
 
   const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage && !!selectedShift;
@@ -243,12 +264,11 @@ export default function CrewClock() {
   }, [selectedCrewId, toast]);
 
   const handleClockAction = async (type: 'in' | 'out') => {
-    if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift) return;
+    if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift || !db) return;
   
     setIsProcessing(true);
   
-    try {
-      const newLogData = {
+    const newLogData = {
         crewMemberId: selectedCrewMember.id,
         crewMemberName: selectedCrewMember.name,
         storeId: assignedStore.id,
@@ -257,33 +277,33 @@ export default function CrewClock() {
         type,
         photoURL: capturedImage,
         shift: selectedShift,
-      };
+    };
 
-      const docRef = await addDoc(collection(db, 'attendance'), newLogData);
-  
-      setLastAction({ id: docRef.id, ...newLogData });
-
-      toast({
-        title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
-        description: `${selectedCrewMember.name} at ${assignedStore.name}`,
-        variant: 'default',
-      });
-      // Reset to initial state
-      setCapturedImage(null);
-      setSelectedCrewId(null);
-      setSelectedShift(null);
-      setSelectedStoreId(null);
-
-    } catch (e) {
-      console.error('Error during clock action: ', e);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not record attendance. Check Firestore rules.',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    addDoc(collection(db, 'attendance'), newLogData)
+    .then((docRef) => {
+        setLastAction({ id: docRef.id, ...newLogData });
+        toast({
+            title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
+            description: `${selectedCrewMember.name} at ${assignedStore.name}`,
+            variant: 'default',
+        });
+        // Reset to initial state
+        setCapturedImage(null);
+        setSelectedCrewId(null);
+        setSelectedShift(null);
+        setSelectedStoreId(null);
+    })
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'attendance',
+          operation: 'create',
+          requestResourceData: newLogData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    })
+    .finally(() => {
+        setIsProcessing(false);
+    });
   };
 
 
@@ -485,5 +505,3 @@ export default function CrewClock() {
     </Card>
   );
 }
-
-    

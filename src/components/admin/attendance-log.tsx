@@ -43,7 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { db } from '@/lib/firebase';
+import { useFirestore } from '@/firebase';
 import { collection, onSnapshot, query, where, Timestamp, doc, updateDoc, addDoc, orderBy } from 'firebase/firestore';
 import type { AttendanceLog, Store, CrewMember } from '@/lib/types';
 import { cn } from "@/lib/utils";
@@ -51,6 +51,8 @@ import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 type AttendanceSummary = {
   crewMemberId: string;
@@ -90,6 +92,7 @@ export default function AttendanceLog() {
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [manualEntryStore, setManualEntryStore] = useState<string | undefined>();
   const { toast } = useToast();
+  const db = useFirestore();
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
@@ -103,12 +106,20 @@ export default function AttendanceLog() {
   });
 
   useEffect(() => {
+    if (!db) return;
     const unsubStores = onSnapshot(collection(db, 'stores'), (snapshot) => {
       const storesData: Store[] = [];
       snapshot.forEach((doc) => {
         storesData.push({ id: doc.id, ...doc.data() } as Store);
       });
       setStores(storesData);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'stores',
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     });
 
     const unsubCrew = onSnapshot(collection(db, 'crew'), (snapshot) => {
@@ -117,16 +128,23 @@ export default function AttendanceLog() {
             crewData.push({ id: doc.id, ...doc.data() } as CrewMember);
         });
         setCrewMembers(crewData);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'crew',
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     });
 
     return () => {
       unsubStores();
       unsubCrew();
     };
-  }, []);
+  }, [db]);
   
  useEffect(() => {
-    if (!date?.from) return;
+    if (!db || !date?.from) return;
     
     setIsLoading(true);
     const fromDate = new Date(date.from);
@@ -138,15 +156,18 @@ export default function AttendanceLog() {
     const startTimestamp = Timestamp.fromDate(startOfDayFrom);
     const endTimestamp = Timestamp.fromDate(endOfDayTo);
     
-    const q = query(
+    let q = query(
         collection(db, 'attendance'),
         where('timestamp', '>=', startTimestamp),
-        where('timestamp', '<=', endTimestamp),
-        orderBy('timestamp', 'desc')
+        where('timestamp', '<=', endTimestamp)
     );
+    if(selectedStoreId !== 'all') {
+      q = query(q, where('storeId', '==', selectedStoreId))
+    }
+    q = query(q, orderBy('timestamp', 'desc'));
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      let logsData: AttendanceLog[] = [];
+      const logsData: AttendanceLog[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         logsData.push({
@@ -155,33 +176,20 @@ export default function AttendanceLog() {
           timestamp: (data.timestamp as Timestamp).toDate(),
         } as AttendanceLog);
       });
-      
-      if (selectedStoreId !== 'all') {
-          logsData = logsData.filter(log => log.storeId === selectedStoreId);
-      }
 
       setLogs(logsData);
       setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching attendance logs:", error);
+    }, async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: 'attendance',
+        operation: 'list',
+      });
+      errorEmitter.emit('permission-error', permissionError);
       setIsLoading(false);
-      if (error.code === 'failed-precondition') {
-         toast({
-            variant: "destructive",
-            title: "Indeks Firestore Diperlukan",
-            description: "Kueri ini memerlukan indeks. Silakan buat di Firebase Console.",
-        });
-      } else {
-        toast({
-            variant: "destructive",
-            title: "Error Memuat Log",
-            description: "Gagal memuat data kehadiran.",
-        });
-      }
     });
 
     return () => unsubscribe();
-  }, [date, selectedStoreId, toast]);
+  }, [db, date, selectedStoreId]);
 
   const attendanceSummary: AttendanceSummary[] = useMemo(() => {
     const summary: Record<string, AttendanceSummary> = {};
@@ -229,28 +237,30 @@ export default function AttendanceLog() {
   };
   
   const handleSaveNote = async () => {
-    if (!selectedLogForNotes) return;
-    try {
-      const logRef = doc(db, 'attendance', selectedLogForNotes.id);
-      await updateDoc(logRef, {
-        notes: noteInput,
+    if (!selectedLogForNotes || !db) return;
+    const logRef = doc(db, 'attendance', selectedLogForNotes.id);
+    const updatedData = { notes: noteInput };
+    
+    updateDoc(logRef, updatedData)
+      .then(() => {
+        toast({
+          title: "Catatan Disimpan",
+          description: "Catatan kehadiran telah diperbarui.",
+        });
+        setSelectedLogForNotes(null);
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: logRef.path,
+          operation: 'update',
+          requestResourceData: updatedData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
-      toast({
-        title: "Catatan Disimpan",
-        description: "Catatan kehadiran telah diperbarui.",
-      });
-      setSelectedLogForNotes(null);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Gagal menyimpan catatan.",
-      });
-      console.error("Error saving note:", error);
-    }
   };
 
   async function onManualEntrySubmit(values: z.infer<typeof manualEntrySchema>) {
+    if (!db) return;
     const selectedCrew = crewMembers.find(c => c.id === values.crewMemberId);
     const assignedStore = stores.find(s => s.id === values.storeId);
 
@@ -263,18 +273,20 @@ export default function AttendanceLog() {
     const finalTimestamp = new Date(values.date);
     finalTimestamp.setHours(hours, minutes);
 
-    try {
-        await addDoc(collection(db, 'attendance'), {
-            crewMemberId: selectedCrew.id,
-            crewMemberName: selectedCrew.name,
-            storeId: assignedStore.id,
-            storeName: assignedStore.name,
-            timestamp: Timestamp.fromDate(finalTimestamp),
-            type: values.type,
-            shift: values.shift,
-            notes: `Manual Entry. ${values.notes || ''}`.trim(),
-            photoURL: '', // No photo for manual entry
-        });
+    const docData = {
+        crewMemberId: selectedCrew.id,
+        crewMemberName: selectedCrew.name,
+        storeId: assignedStore.id,
+        storeName: assignedStore.name,
+        timestamp: Timestamp.fromDate(finalTimestamp),
+        type: values.type,
+        shift: values.shift,
+        notes: `Manual Entry. ${values.notes || ''}`.trim(),
+        photoURL: '', // No photo for manual entry
+    };
+
+    addDoc(collection(db, 'attendance'), docData)
+      .then(() => {
         toast({
             title: "Entri Manual Berhasil",
             description: `Log absensi untuk ${selectedCrew.name} telah ditambahkan.`,
@@ -287,10 +299,15 @@ export default function AttendanceLog() {
             shift: "",
             notes: "",
         });
-    } catch (error) {
-        console.error("Error adding manual entry:", error);
-        toast({ variant: "destructive", title: "Error", description: "Gagal menyimpan entri manual." });
-    }
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'attendance',
+          operation: 'create',
+          requestResourceData: docData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   }
 
 
@@ -500,13 +517,13 @@ export default function AttendanceLog() {
                     </TableCell>
                      <TableCell>
                         <DialogTrigger asChild>
-                          <div onClick={() => handleOpenNotesDialog(log)} className='w-full text-left cursor-pointer'>
+                           <div onClick={() => handleOpenNotesDialog(log)} className='w-full text-left cursor-pointer'>
                            {log.notes ? (
                                <p className="truncate max-w-[150px] hover:underline">{log.notes}</p>
                            ) : (
-                               <div className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted">
+                               <Button variant="ghost" size="icon" className="h-8 w-8">
                                    <Edit className="h-4 w-4 text-muted-foreground" />
-                               </div>
+                               </Button>
                            )}
                           </div>
                         </DialogTrigger>

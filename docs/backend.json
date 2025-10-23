@@ -1,0 +1,124 @@
+{
+  "entities": {
+    "store": {
+      "title": "Store",
+      "description": "Represents a physical store location.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the store."
+        },
+        "latitude": {
+          "type": "number",
+          "description": "The latitude of the store's location."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "The longitude of the store's location."
+        }
+      },
+      "required": ["name", "latitude", "longitude"]
+    },
+    "crewMember": {
+      "title": "Crew Member",
+      "description": "Represents a store crew member.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the crew member."
+        },
+        "storeId": {
+          "type": "string",
+          "description": "The ID of the store the crew member is assigned to."
+        }
+      },
+      "required": ["name", "storeId"]
+    },
+    "attendanceLog": {
+      "title": "Attendance Log",
+      "description": "Represents a single clock-in or clock-out event.",
+      "type": "object",
+      "properties": {
+        "crewMemberId": {
+          "type": "string"
+        },
+        "crewMemberName": {
+          "type": "string"
+        },
+        "storeId": {
+          "type": "string"
+        },
+        "storeName": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["in", "out"]
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "shift": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": ["crewMemberId", "crewMemberName", "storeId", "storeName", "timestamp", "type"]
+    },
+    "broadcastMessage": {
+      "title": "Broadcast Message",
+      "description": "Represents an announcement sent to crew members.",
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "attachmentURL": {
+          "type": "string"
+        }
+      },
+      "required": ["message", "timestamp"]
+    }
+  },
+  "auth": {
+    "providers": []
+  },
+  "firestore": {
+    "/stores/{storeId}": {
+      "schema": {
+        "$ref": "#/entities/store"
+      },
+      "description": "Stores collection"
+    },
+    "/crew/{crewId}": {
+      "schema": {
+        "$ref": "#/entities/crewMember"
+      },
+      "description": "Crew members collection"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": {
+        "$ref": "#/entities/attendanceLog"
+      },
+      "description": "Attendance logs collection"
+    },
+    "/broadcasts/{broadcastId}": {
+      "schema": {
+        "$ref": "#/entities/broadcastMessage"
+      },
+      "description": "Broadcast messages collection"
+    }
+  }
+}

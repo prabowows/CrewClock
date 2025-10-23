@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { db } from '@/lib/firebase';
+import { useFirestore } from '@/firebase';
 import { collection, addDoc, onSnapshot, orderBy, query, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { Send, Trash2, Link2 } from 'lucide-react';
 import type { BroadcastMessage as BroadcastMessageType } from '@/lib/types';
@@ -28,6 +28,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from '../ui/card';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const broadcastSchema = z.object({
   message: z.string().min(10, "Message must be at least 10 characters.").max(500, "Message cannot exceed 500 characters."),
@@ -37,8 +39,10 @@ const broadcastSchema = z.object({
 export default function BroadcastMessage() {
   const [broadcasts, setBroadcasts] = useState<BroadcastMessageType[]>([]);
   const { toast } = useToast();
+  const db = useFirestore();
 
   useEffect(() => {
+    if (!db) return;
     const q = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
     const unsub = onSnapshot(q, (snapshot) => {
       const messages = snapshot.docs.map(doc => {
@@ -50,9 +54,16 @@ export default function BroadcastMessage() {
         } as BroadcastMessageType;
       });
       setBroadcasts(messages);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'broadcasts',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     });
     return () => unsub();
-  }, []);
+  }, [db]);
 
   const form = useForm<z.infer<typeof broadcastSchema>>({
     resolver: zodResolver(broadcastSchema),
@@ -63,44 +74,52 @@ export default function BroadcastMessage() {
   });
 
   async function onSubmit(values: z.infer<typeof broadcastSchema>) {
-    try {
-      const docData: { message: string; timestamp: Date; attachmentURL?: string } = {
+    if (!db) return;
+    const docData: { message: string; timestamp: Date; attachmentURL?: string } = {
         message: values.message,
         timestamp: new Date(),
-      };
+    };
 
-      if (values.attachmentURL) {
+    if (values.attachmentURL) {
         docData.attachmentURL = values.attachmentURL;
-      }
-
-      await addDoc(collection(db, 'broadcasts'), docData);
-      toast({
-        title: "Broadcast Sent!",
-        description: "Your message has been sent to all crew members.",
-      });
-      form.reset();
-    } catch (e) {
-      console.error("Error sending broadcast: ", e);
-      toast({ variant: "destructive", title: "Error", description: "Could not send broadcast." });
     }
+
+    addDoc(collection(db, 'broadcasts'), docData)
+    .then(() => {
+        toast({
+            title: "Broadcast Sent!",
+            description: "Your message has been sent to all crew members.",
+        });
+        form.reset();
+    })
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'broadcasts',
+            operation: 'create',
+            requestResourceData: docData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   }
 
   const handleDelete = async (id: string) => {
-    try {
-        await deleteDoc(doc(db, 'broadcasts', id));
+    if (!db) return;
+    const docRef = doc(db, 'broadcasts', id);
+    deleteDoc(docRef)
+    .then(() => {
         toast({
             title: "Broadcast Deleted",
             description: "The message has been removed from the history.",
             variant: "destructive"
         });
-    } catch (error) {
-        console.error("Error deleting broadcast: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not delete the message."
+    })
+    .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'delete',
         });
-    }
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   return (
