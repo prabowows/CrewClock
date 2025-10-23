@@ -161,14 +161,12 @@ export default function CrewClock() {
     setSelectedStoreId(storeId);
     setSelectedCrewId(null);
     setSelectedShift(null);
-    setCapturedImage(null);
     setLastAction(null);
   };
   
   const handleCrewChange = (crewId: string) => {
     setSelectedCrewId(crewId);
     setSelectedShift(null);
-    setCapturedImage(null);
   }
 
   const fetchLastAction = async (crewId: string) => {
@@ -205,7 +203,6 @@ export default function CrewClock() {
     if (selectedCrewId) {
       fetchLastAction(selectedCrewId);
     } else {
-      setCapturedImage(null);
       setSelectedShift(null);
       setLastAction(null);
     }
@@ -313,9 +310,8 @@ export default function CrewClock() {
         context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         setCapturedImage(dataUrl);
-        setIsCameraOpen(false); // Close dialog on capture
+        setIsCameraOpen(false); 
 
-        // Stop the camera stream after taking photo
         const stream = video.srcObject as MediaStream;
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
@@ -357,7 +353,7 @@ export default function CrewClock() {
                   <DialogTrigger asChild>
                       <button
                           className="w-40 h-40 rounded-full bg-card border-[6px] border-primary flex flex-col items-center justify-center mx-auto transition-transform active:scale-95 disabled:opacity-50"
-                          disabled={!selectedCrewId || !selectedShift || isProcessing}
+                          disabled={isProcessing}
                       >
                           <Camera className="w-16 h-16 text-primary" />
                           <span className="text-lg font-semibold text-primary mt-1">Ambil Foto</span>
