@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
 const crewSchema = z.object({
   name: z.string().min(2, "Crew member name must be at least 2 characters."),
@@ -47,25 +47,24 @@ export default function CrewManagement() {
     },
   });
 
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+        const crewSnapshot = await getDocs(collection(db, "crew"));
+        setCrewMembers(crewSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+
+        const storesSnapshot = await getDocs(collection(db, "stores"));
+        setStores(storesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    } catch (error) {
+        console.error("Error fetching data:", error);
+        toast({ title: "Error", description: "Could not fetch data.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-      setIsLoading(true);
-      const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
-          setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
-          setIsLoading(false);
-      }, (error) => {
-          console.error("Error fetching crew:", error);
-          toast({ title: "Error", description: "Could not fetch crew members.", variant: "destructive" });
-          setIsLoading(false);
-      });
-
-      const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
-          setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
-      });
-
-      return () => {
-          unsubCrew();
-          unsubStores();
-      };
+    fetchData();
   }, [toast]);
   
   useEffect(() => {
@@ -101,6 +100,7 @@ export default function CrewManagement() {
         }
         setEditingCrew(null);
         form.reset();
+        fetchData(); // Refresh data
     } catch (error) {
         console.error("Error saving crew member:", error);
         toast({
@@ -121,6 +121,7 @@ export default function CrewManagement() {
             title: "Success",
             description: `Crew member ${crewName} deleted.`,
         });
+        fetchData(); // Refresh data
     } catch (error) {
         console.error("Error deleting crew member:", error);
         toast({

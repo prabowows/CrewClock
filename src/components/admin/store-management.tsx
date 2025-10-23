@@ -24,7 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
 
 const storeSchema = z.object({
@@ -48,18 +48,21 @@ export default function StoreManagement() {
     },
   });
 
-  useEffect(() => {
+  const fetchStores = async () => {
     setIsLoading(true);
-    const unsubscribe = onSnapshot(collection(db, "stores"), (snapshot) => {
+    try {
+        const snapshot = await getDocs(collection(db, "stores"));
         setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
-        setIsLoading(false);
-    }, (error) => {
+    } catch (error) {
         console.error("Error fetching stores:", error);
         toast({ title: "Error", description: "Could not fetch stores.", variant: "destructive" });
+    } finally {
         setIsLoading(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
+  useEffect(() => {
+    fetchStores();
   }, [toast]);
 
   useEffect(() => {
@@ -97,6 +100,7 @@ export default function StoreManagement() {
       }
       setEditingStore(null);
       form.reset();
+      fetchStores(); // Refresh data
     } catch (error) {
       console.error("Error saving store:", error);
       toast({
@@ -117,6 +121,7 @@ export default function StoreManagement() {
         title: "Success",
         description: "Store deleted.",
       });
+      fetchStores(); // Refresh data
     } catch (error) {
       console.error("Error deleting store:", error);
       toast({

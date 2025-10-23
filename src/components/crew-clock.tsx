@@ -27,7 +27,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
+import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, onSnapshot } from "firebase/firestore";
 
 export default function CrewClock() {
   const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
@@ -54,14 +54,23 @@ export default function CrewClock() {
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
-      setAllCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
-    });
-    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
-      setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
-    });
+  const fetchInitialData = async () => {
+    try {
+      const crewSnapshot = await getDocs(collection(db, "crew"));
+      setAllCrewMembers(crewSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+      
+      const storeSnapshot = await getDocs(collection(db, "stores"));
+      setStores(storeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    } catch(error) {
+      console.error("Failed to fetch initial data", error);
+      toast({ title: "Error", description: "Could not fetch store or crew data.", variant: "destructive" });
+    }
+  }
 
+  useEffect(() => {
+    fetchInitialData();
+    
+    // Broadcasts can remain real-time as they are less critical
     const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
     const unsubBroadcasts = onSnapshot(qBroadcasts, (snapshot) => {
         const broadcastsData: BroadcastMessage[] = [];
@@ -97,8 +106,6 @@ export default function CrewClock() {
     }
 
     return () => {
-      unsubCrew();
-      unsubStores();
       unsubBroadcasts();
     };
   }, []);
@@ -147,22 +154,19 @@ export default function CrewClock() {
     setCapturedImage(null);
   }
 
-  useEffect(() => {
-    if (!selectedCrewId) {
+  const fetchLastAction = async (crewId: string) => {
+    if (!crewId) {
       setLastAction(null);
-      setCapturedImage(null);
-      setSelectedShift(null);
       return;
     }
-  
-    const q = query(
-      collection(db, 'attendance'),
-      where('crewMemberId', '==', selectedCrewId),
-      orderBy('timestamp', 'desc'),
-      limit(1)
-    );
-  
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    try {
+      const q = query(
+        collection(db, 'attendance'),
+        where('crewMemberId', '==', crewId),
+        orderBy('timestamp', 'desc'),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
       if (!snapshot.empty) {
         const doc = snapshot.docs[0];
         const data = doc.data();
@@ -174,9 +178,20 @@ export default function CrewClock() {
       } else {
         setLastAction(null);
       }
-    });
-  
-    return () => unsubscribe();
+    } catch (error) {
+      console.error("Error fetching last action:", error);
+      setLastAction(null);
+    }
+  }
+
+  useEffect(() => {
+    if (selectedCrewId) {
+      fetchLastAction(selectedCrewId);
+    } else {
+      setCapturedImage(null);
+      setSelectedShift(null);
+      setLastAction(null);
+    }
   }, [selectedCrewId]);
 
 

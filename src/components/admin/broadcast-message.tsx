@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from '../ui/card';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
 
 
 const broadcastSchema = z.object({
@@ -48,19 +48,22 @@ export default function BroadcastMessage() {
     },
   });
 
-  useEffect(() => {
+  const fetchBroadcasts = async () => {
     setIsLoading(true);
-    const q = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    try {
+      const q = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
+      const snapshot = await getDocs(q);
       setBroadcasts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as BroadcastMessageType)));
-      setIsLoading(false);
-    }, (error) => {
+    } catch (error) {
       console.error("Error fetching broadcasts:", error);
       toast({ title: "Error", description: "Could not fetch broadcast messages.", variant: "destructive" });
+    } finally {
       setIsLoading(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
+  useEffect(() => {
+    fetchBroadcasts();
   }, [toast]);
 
   async function onSubmit(values: z.infer<typeof broadcastSchema>) {
@@ -75,6 +78,7 @@ export default function BroadcastMessage() {
             description: "Your broadcast message has been sent.",
         });
         form.reset();
+        fetchBroadcasts(); // Refresh data
     } catch (error) {
         console.error("Error sending broadcast: ", error);
         toast({
@@ -95,6 +99,7 @@ export default function BroadcastMessage() {
             title: "Success",
             description: "Broadcast message deleted.",
         });
+        fetchBroadcasts(); // Refresh data
     } catch (error) {
         console.error("Error deleting broadcast:", error);
         toast({

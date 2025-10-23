@@ -51,7 +51,7 @@ import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where, orderBy, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 
 
 type AttendanceSummary = {
@@ -104,31 +104,28 @@ export default function AttendanceLog() {
     },
   });
 
-  useEffect(() => {
+  const fetchData = async () => {
     setIsLoading(true);
-    const unsubLogs = onSnapshot(collection(db, "attendance"), 
-      (snapshot) => {
-        setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as AttendanceLogType)));
-        setIsLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching attendance:", error);
-        toast({ title: "Error", description: "Could not fetch attendance logs.", variant: "destructive" });
-        setIsLoading(false);
-      }
-    );
-    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
-        setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
-    });
-    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
-        setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMemberType)));
-    });
+    try {
+      const logSnapshot = await getDocs(collection(db, "attendance"));
+      setLogs(logSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as AttendanceLogType)));
+      
+      const storeSnapshot = await getDocs(collection(db, "stores"));
+      setStores(storeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+      
+      const crewSnapshot = await getDocs(collection(db, "crew"));
+      setCrewMembers(crewSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMemberType)));
 
-    return () => {
-        unsubLogs();
-        unsubStores();
-        unsubCrew();
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast({ title: "Error", description: "Could not fetch data from Firestore.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchData();
   }, [toast]);
 
   const filteredLogs = useMemo(() => {
@@ -206,6 +203,7 @@ export default function AttendanceLog() {
             description: "Note saved successfully.",
         });
         setSelectedLogForNotes(null);
+        fetchData(); // Refresh data
     } catch (error) {
         console.error("Error saving note: ", error);
         toast({
@@ -243,6 +241,7 @@ export default function AttendanceLog() {
         });
         setIsManualEntryOpen(false);
         form.reset();
+        fetchData(); // Refresh data
     } catch (error) {
         console.error("Error adding manual entry: ", error);
         toast({
@@ -570,7 +569,7 @@ export default function AttendanceLog() {
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Pilih seorang kru" />
-                                        </SelectTrigger>
+                                        </Trigger>
                                     </FormControl>
                                     <SelectContent>
                                         {manualEntryFilteredCrew.map(crew => (
@@ -667,7 +666,7 @@ export default function AttendanceLog() {
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Pilih shift" />
-                                        </SelectTrigger>
+                                        </Trigger>
                                     </FormControl>
                                     <SelectContent>
                                         <SelectItem value="Shift 1">Shift 1</SelectItem>
@@ -702,3 +701,5 @@ export default function AttendanceLog() {
     </div>
   );
 }
+
+    
