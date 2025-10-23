@@ -4,6 +4,8 @@
 
 const { initializeApp } = require('firebase/app');
 const { getFirestore, collection, doc, setDoc, Timestamp } = require('firebase/firestore');
+const { getAuth, createUserWithEmailAndPassword } = require('firebase/auth');
+
 
 // --- IMPORTANT ---
 // 1. Make sure you have initialized a Firebase project.
@@ -15,6 +17,11 @@ const firebaseConfig = {
     "authDomain": "studio-1410642569-45f02.firebaseapp.com",
     "measurementId": "",
     "messagingSenderId": "29217588201"
+};
+
+const adminUser = {
+  email: 'admin@example.com',
+  password: 'password123',
 };
 
 const stores = [
@@ -90,10 +97,27 @@ async function seedDatabase() {
     
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    
+    const auth = getAuth(app);
+
     console.log("Starting to seed database...");
 
+    // Create admin user
+    try {
+        await createUserWithEmailAndPassword(auth, adminUser.email, adminUser.password);
+        console.log(`\n✅ Admin user created:`);
+        console.log(`   - Email: ${adminUser.email}`);
+        console.log(`   - Password: ${adminUser.password}`);
+    } catch (error) {
+        if (error.code === 'auth/email-already-in-use') {
+            console.log(`\nℹ️ Admin user (${adminUser.email}) already exists. Skipping creation.`);
+        } else {
+            console.error('\n❌ Error creating admin user:', error.message);
+        }
+    }
+
+
     // Seed stores
+    console.log("\nSeeding collections...");
     for (const store of stores) {
         try {
             const { id, ...data } = store;
