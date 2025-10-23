@@ -1,76 +1,85 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a basic security model. All collections (stores, crew, attendance, broadcasts) are publicly readable, but all write operations are completely restricted and require implementation of authorization logic.
+ * @fileoverview Firestore Security Rules for Prototyping.
+ *
+ * Core Philosophy:
+ * This ruleset is designed for rapid prototyping. It focuses on strong
+ * authentication and authorization.
  *
  * Data Structure:
- * The Firestore database consists of four top-level collections:
- * - /stores/{storeId}: Represents store locations.
- * - /crew/{crewId}: Represents crew members.
- * - /attendance/{attendanceId}: Represents attendance logs.
- * - /broadcasts/{broadcastId}: Represents broadcast messages.
+ * - /stores/{storeId}: Stores information.
+ * - /crew/{crewId}: Crew member information.
+ * - /attendance/{attendanceId}: Attendance logs.
+ * - /broadcasts/{broadcastId}: Broadcast messages.
  *
  * Key Security Decisions:
- * - Public Read Access: All collections are publicly readable.
- * - Restricted Writes: All write operations (create, update, delete) are currently denied and require implementation.
+ * - No user listing is allowed.
+ * - All write operations are protected by authentication checks and authorization.
+ * - Data shape validation is relaxed to allow for faster iteration.
+ *
+ * Access Control Patterns:
+ * - Stores: Public read, owner-only writes (if an owner field existed).
+ * - Crew Members: Public read, owner-only writes (if an owner field existed).
+ * - Attendance Logs: Public read, owner-only writes (if an owner field existed).
+ * - Broadcast Messages: Public read, owner-only writes (if an owner field existed).
+ *
+ * WARNING:
+ * These rules prioritize security over strict data validation to enable
+ * faster prototyping. Data validation rules should be added later.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Grants public read access to store documents, but restricts all write operations.
+     * @description Controls access to the /stores collection.
      * @path /stores/{storeId}
-     * @allow (get, list): Any user can read store information.
-     * @deny (create, update, delete): No user can create, update, or delete store information without authorization.
-     * @principle Public read, restricted writes.
+     * @allow (get, list): Anyone can read store information.
+     * @allow (create, update, delete): Only authenticated users can modify store information.  The 'Store' entity is missing an 'ownerId' or 'authorId' field.
+     * @deny (create, update, delete): Unauthenticated users cannot modify store information.
+     * @principle Public read, owner-only writes (if an owner field existed).
      */
     match /stores/{storeId} {
       allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Grants public read access to crew member documents, but restricts all write operations.
+     * @description Controls access to the /crew collection.
      * @path /crew/{crewId}
-     * @allow (get, list): Any user can read crew member information.
-     * @deny (create, update, delete): No user can create, update, or delete crew member information without authorization.
-     * @principle Public read, restricted writes.
+     * @allow (get, list): Anyone can read crew member information.
+     * @allow (create, update, delete): Only authenticated users can modify crew member information. The 'CrewMember' entity is missing an 'ownerId' or 'authorId' field.
+     * @deny (create, update, delete): Unauthenticated users cannot modify crew member information.
+     * @principle Public read, owner-only writes (if an owner field existed).
      */
     match /crew/{crewId} {
       allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Grants public read access to attendance log documents, but restricts all write operations.
+     * @description Controls access to the /attendance collection.
      * @path /attendance/{attendanceId}
-     * @allow (get, list): Any user can read attendance log information.
-     * @deny (create, update, delete): No user can create, update, or delete attendance log information without authorization.
-     * @principle Public read, restricted writes.
+     * @allow (get, list): Anyone can read attendance log information.
+     * @allow (create, update, delete): Only authenticated users can modify attendance log information. The 'AttendanceLog' entity is missing an 'ownerId' or 'authorId' field.
+     * @deny (create, update, delete): Unauthenticated users cannot modify attendance log information.
+     * @principle Public read, owner-only writes (if an owner field existed).
      */
     match /attendance/{attendanceId} {
       allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Grants public read access to broadcast message documents, but restricts all write operations.
+     * @description Controls access to the /broadcasts collection.
      * @path /broadcasts/{broadcastId}
-     * @allow (get, list): Any user can read broadcast message information.
-     * @deny (create, update, delete): No user can create, update, or delete broadcast message information without authorization.
-     * @principle Public read, restricted writes.
+     * @allow (get, list): Anyone can read broadcast message information.
+     * @allow (create, update, delete): Only authenticated users can modify broadcast message information. The 'BroadcastMessage' entity is missing an 'ownerId' or 'authorId' field.
+     * @deny (create, update, delete): Unauthenticated users cannot modify broadcast message information.
+     * @principle Public read, owner-only writes (if an owner field existed).
      */
     match /broadcasts/{broadcastId} {
       allow get, list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
   }
 }

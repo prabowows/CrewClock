@@ -18,5 +18,13 @@ export function initializeFirebase(): FirebaseServices {
   const auth = getAuth(app);
   const firestore = getFirestore(app);
 
+  // Note: Emulator connection is commented out for production.
+  // if (process.env.NODE_ENV === 'development') {
+  //   const { connectAuthEmulator } = require('firebase/auth');
+  //   const { connectFirestoreEmulator } = require('firebase/firestore');
+  //   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+  //   connectFirestoreEmulator(firestore, 'localhost', 8080);
+  // }
+
   return { app, auth, firestore };
 }

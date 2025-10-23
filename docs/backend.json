@@ -93,7 +93,7 @@
     }
   },
   "auth": {
-    "providers": []
+    "providers": ["Email/Password"]
   },
   "firestore": {
     "/stores/{storeId}": {
