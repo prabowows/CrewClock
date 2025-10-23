@@ -50,11 +50,10 @@ import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-
+import { useFirestore } from '@/firebase';
 
 type AttendanceSummary = {
   crewMemberId: string;
@@ -94,6 +93,7 @@ export default function AttendanceLog() {
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [manualEntryStore, setManualEntryStore] = useState<string | undefined>();
   const { toast } = useToast();
+  const db = useFirestore();
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
@@ -131,7 +131,7 @@ export default function AttendanceLog() {
 
   useEffect(() => {
     fetchData();
-  }, [toast]);
+  }, [toast, db]);
 
   const filteredLogs = useMemo(() => {
     if (!date?.from) return [];
@@ -478,17 +478,17 @@ export default function AttendanceLog() {
                       </Badge>
                     </TableCell>
                      <TableCell>
-                        <DialogTrigger asChild>
-                           <button onClick={() => handleOpenNotesDialog(log)} className='w-full text-left cursor-pointer'>
-                           {log.notes ? (
-                               <p className="truncate max-w-[150px] hover:underline">{log.notes}</p>
-                           ) : (
-                               <Button variant="ghost" size="icon" className="h-8 w-8">
-                                   <Edit className="h-4 w-4 text-muted-foreground" />
-                               </Button>
-                           )}
-                          </button>
-                        </DialogTrigger>
+                        {log.notes ? (
+                          <DialogTrigger asChild>
+                            <p onClick={() => handleOpenNotesDialog(log)} className="truncate max-w-[150px] hover:underline cursor-pointer">{log.notes}</p>
+                          </DialogTrigger>
+                        ) : (
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenNotesDialog(log)}>
+                                <Edit className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </DialogTrigger>
+                        )}
                     </TableCell>
                   </TableRow>
                 )) : (
