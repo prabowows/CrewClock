@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -315,8 +314,20 @@ export default function CrewClock() {
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         setCapturedImage(dataUrl);
         setIsCameraOpen(false); // Close dialog on capture
+
+        // Stop the camera stream after taking photo
+        const stream = video.srcObject as MediaStream;
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+        }
       }
     }
+  };
+
+  const handleRetakePhoto = () => {
+    setCapturedImage(null);
+    setIsCameraOpen(true);
   };
 
   const nextActionType = !lastAction || lastAction.type === 'out' ? 'in' : 'out';
@@ -340,58 +351,60 @@ export default function CrewClock() {
         <CardContent className="p-6 bg-card text-card-foreground rounded-t-3xl space-y-6">
           <DigitalClock />
 
-          {!capturedImage ? (
-            <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
-              <DialogTrigger asChild>
-                  <button
-                      className="w-40 h-40 rounded-full bg-card border-[6px] border-primary flex flex-col items-center justify-center mx-auto transition-transform active:scale-95 disabled:opacity-50"
-                      disabled={!selectedCrewId || !selectedShift || isProcessing}
-                  >
-                      <Camera className="w-16 h-16 text-primary" />
-                      <span className="text-lg font-semibold text-primary mt-1">Ambil Foto</span>
-                  </button>
-              </DialogTrigger>
-              <DialogContent>
-                  <DialogHeader>
-                      <DialogTitle>Ambil Foto</DialogTitle>
-                  </DialogHeader>
-                   <div className="space-y-4 text-center">
-                      <canvas ref={canvasRef} className="hidden" />
-                      <div className="relative w-full aspect-[4/3] bg-muted rounded-xl overflow-hidden flex items-center justify-center">
-                        <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} autoPlay muted playsInline />
-                        {hasCameraPermission === false && (
-                          <Alert variant="destructive" className="m-4">
-                            <Camera className="h-4 w-4" />
-                            <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
-                            <AlertDescription>
-                              Izinkan akses kamera di browser Anda untuk melanjutkan.
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                        {hasCameraPermission === null && (
-                          <div className="absolute flex flex-col items-center gap-2 text-muted-foreground">
-                              <Loader className="animate-spin h-6 w-6" />
-                              <p className="text-sm">Memulai kamera...</p>
+          <div className="space-y-4">
+              {!capturedImage ? (
+                <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
+                  <DialogTrigger asChild>
+                      <button
+                          className="w-40 h-40 rounded-full bg-card border-[6px] border-primary flex flex-col items-center justify-center mx-auto transition-transform active:scale-95 disabled:opacity-50"
+                          disabled={!selectedCrewId || !selectedShift || isProcessing}
+                      >
+                          <Camera className="w-16 h-16 text-primary" />
+                          <span className="text-lg font-semibold text-primary mt-1">Ambil Foto</span>
+                      </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                      <DialogHeader>
+                          <DialogTitle>Ambil Foto</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 text-center">
+                          <canvas ref={canvasRef} className="hidden" />
+                          <div className="relative w-full aspect-[4/3] bg-muted rounded-xl overflow-hidden flex items-center justify-center">
+                            <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} autoPlay muted playsInline />
+                            {hasCameraPermission === false && (
+                              <Alert variant="destructive" className="m-4">
+                                <Camera className="h-4 w-4" />
+                                <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
+                                <AlertDescription>
+                                  Izinkan akses kamera di browser Anda untuk melanjutkan.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                            {hasCameraPermission === null && (
+                              <div className="absolute flex flex-col items-center gap-2 text-muted-foreground">
+                                  <Loader className="animate-spin h-6 w-6" />
+                                  <p className="text-sm">Memulai kamera...</p>
+                              </div>
+                            )}
                           </div>
-                        )}
+                          <Button onClick={handleTakePhoto} size="lg" className="w-full rounded-xl" disabled={hasCameraPermission !== true || isProcessing}>
+                            <Camera className="mr-2" />
+                            Ambil Foto
+                          </Button>
                       </div>
-                      <Button onClick={handleTakePhoto} size="lg" className="w-full rounded-xl" disabled={hasCameraPermission !== true || isProcessing}>
-                        <Camera className="mr-2" />
-                        Ambil Foto
-                      </Button>
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <div className="relative group w-40 h-40 mx-auto rounded-full overflow-hidden border-[6px] border-primary">
+                    <img src={capturedImage} alt="Selfie" className="object-cover w-full h-full" />
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={handleRetakePhoto} className="text-white bg-black/50 p-2 rounded-full">
+                            <RefreshCcw className="w-6 h-6" />
+                        </button>
+                    </div>
                   </div>
-              </DialogContent>
-            </Dialog>
-          ) : (
-             <div className="relative group w-40 h-40 mx-auto rounded-full overflow-hidden border-[6px] border-primary">
-                <img src={capturedImage} alt="Selfie" className="object-cover w-full h-full" />
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setCapturedImage(null)} className="text-white bg-black/50 p-2 rounded-full">
-                        <RefreshCcw className="w-6 h-6" />
-                    </button>
-                </div>
-              </div>
-          )}
+              )}
+          </div>
           
           <div className="space-y-3">
              <p className="text-center text-muted-foreground">Choose your remote mode</p>
