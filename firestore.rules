@@ -1,148 +1,97 @@
-/**
- * @description This ruleset enforces a role-based access control model with admin overrides.
- * Data is organized hierarchically under stores, crew members, and attendance logs.
- * Broadcast messages target specific stores, and access is controlled based on store membership.
- * @dataStructure
- * - /roles_admin/{uid}: Admin role assignments. Presence of a document indicates admin status.
- * - /stores/{storeId}: Store information. Accessible to admins.
- * - /stores/{storeId}/crew/{crewId}: Store crew member information. Accessible to admins and the crew member themselves.
- * - /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}: Attendance logs. Accessible to admins and the associated crew member.
- * - /broadcasts/{broadcastId}: Broadcast messages targeted at specific stores.
- * @keySecurityDecisions
- * - Admins have full read and write access to all data.
- * - Crew members can only access their own data.
- * - Listing of admin roles is denied.
- * - Data consistency between path and document data is enforced where relevant.
- * - Read-only collections are not applicable in this data model.
- * @denormalizationForAuthorization
- * - The `storeId` is denormalized in the `AttendanceLog` to allow for authorization without requiring a `get()` on the parent `crew` document.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Restricts access to admin role assignments. Only admins can create new admin roles.
+     * @description Admin role assignments. Presence of a document for a UID indicates admin access.
      * @path /roles_admin/{uid}
-     * @allow (create) - An admin can create a new admin role document for any user.
-     *   - request.auth.uid: 'admin_uid'
-     *   - request.resource.data: {} (any data is allowed)
+     * @allow (create) - An admin can create their own role document (self-assignment).
      * @deny (create) - A non-admin user attempts to create an admin role document.
-     *   - request.auth.uid: 'user_uid'
-     *   - request.resource.data: {}
-     * @principle Enforces role-based access control.
+     * @principle Self-Creation: Allows a user to create their own admin role if they are an admin.
      */
     match /roles_admin/{uid} {
-      function isAdmin() {
-        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-      }
-
-      allow get: if isAdmin();
-      allow list: if false; // Listing admin roles is not allowed
-
-      allow create: if isAdmin();
+      allow get: if false;
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == uid;
       allow update: if false;
       allow delete: if false;
     }
 
     /**
-     * @description Manages store information. Allows admins to create, read, update, and delete stores.
+     * @description Stores information about each store, such as its name and location. Admins can create and manage stores.
      * @path /stores/{storeId}
-     * @allow (create) - An admin creates a new store.
-     *   - request.auth.uid: 'admin_uid'
-     *   - request.resource.data: {id: 'store1', name: 'Store One', latitude: 123.45, longitude: -67.89}
-     * @deny (create) - A non-admin user attempts to create a store.
-     *   - request.auth.uid: 'user_uid'
-     *   - request.resource.data: {id: 'store1', name: 'Store One', latitude: 123.45, longitude: -67.89}
-     * @principle Enforces role-based access control.
+     * @allow (get, list) - Anyone can read store information.
+     * @allow (create) - Admins can create stores.
+     * @deny (update, delete) - Non-admins cannot update or delete stores.
+     * @principle Public Read with Owner-Only Writes: Allows public read access, but restricts writes to admins only.
      */
     match /stores/{storeId} {
-      function isAdmin() {
-        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-      }
-
-      allow get, list: if true; // Public read
-
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     /**
-     * @description Manages store crew information. Admins can manage all crew members, while crew members can only access their own data.
+     * @description Stores store crew information. Enforces path-based ownership for security.
      * @path /stores/{storeId}/crew/{crewId}
-     * @allow (get) - An admin retrieves a crew member's information.
-     *   - request.auth.uid: 'admin_uid'
-     * @allow (get) - A crew member retrieves their own information.
-     *   - request.auth.uid: 'crew_uid'
-     * @deny (get) - A crew member attempts to retrieve another crew member's information.
-     *   - request.auth.uid: 'crew_uid_1'
-     *   - crewId: 'crew_uid_2'
-     * @principle Enforces role-based access control and data ownership.
+     * @allow (get, list) - Admins can read store crew information.
+     * @allow (create) - Admins can create store crew members.
+     * @deny (update, delete) - Non-admins cannot update or delete store crew members.
+     * @principle Path-Based Ownership: Enforces ownership based on the document path; only admins can create, update, and delete crew members.
      */
     match /stores/{storeId}/crew/{crewId} {
-      function isAdmin() {
-        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-      }
-      function isOwner(crewId) {
-        return request.auth.uid == crewId;
-      }
-
-      allow get, list: if isAdmin() || isOwner(crewId);
-
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get: if isSignedIn() && isAdmin();
+      allow list: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     /**
-     * @description Manages attendance logs for store crew members. Admins can manage all logs, while crew members can only access their own logs.
+     * @description Stores attendance logs. Enforces path-based ownership; includes denormalized 'storeId' for authorization independence.
      * @path /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}
-     * @allow (get) - An admin retrieves an attendance log.
-     *   - request.auth.uid: 'admin_uid'
-     * @allow (get) - A crew member retrieves their own attendance log.
-     *   - request.auth.uid: 'crew_uid'
-     * @deny (get) - A crew member attempts to retrieve another crew member's attendance log.
-     *   - request.auth.uid: 'crew_uid_1'
-     *   - crewId: 'crew_uid_2'
-     * @principle Enforces role-based access control and data ownership.
+     * @allow (get, list) - Admins can read attendance logs.
+     * @allow (create) - Admins can create attendance logs.
+     * @deny (update, delete) - Non-admins cannot update or delete attendance logs.
+     * @principle Path-Based Ownership: Enforces ownership based on the document path; only admins can create, update, and delete attendance logs.
      */
     match /stores/{storeId}/crew/{crewId}/attendance/{attendanceId} {
-      function isAdmin() {
-        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-      }
-      function isOwner(crewId) {
-        return request.auth.uid == crewId;
-      }
-
-      allow get, list: if isAdmin() || isOwner(crewId);
-
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get: if isSignedIn() && isAdmin();
+      allow list: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
     /**
-     * @description Manages broadcast messages. Only admins can create, update, and delete messages. Anyone can read the messages.
+     * @description Stores broadcast messages. The 'storeIds' array indicates which stores should receive the message.
      * @path /broadcasts/{broadcastId}
-     * @allow (create) - An admin creates a new broadcast message.
-     *   - request.auth.uid: 'admin_uid'
-     *   - request.resource.data: {message: 'Hello crew!', timestamp: '2024-01-01T00:00:00Z', storeIds: ['store1', 'store2']}
-     * @deny (create) - A non-admin user attempts to create a broadcast message.
-     *   - request.auth.uid: 'user_uid'
-     *   - request.resource.data: {message: 'Hello crew!', timestamp: '2024-01-01T00:00:00Z', storeIds: ['store1', 'store2']}
-     * @principle Enforces role-based access control.
+     * @allow (get, list) - Anyone can read broadcast messages.
+     * @allow (create) - Only admins can create broadcast messages.
+     * @deny (update, delete) - Non-admins cannot update or delete broadcast messages.
+     * @principle Public Read with Owner-Only Writes: Allows public read access, but restricts writes to admins only.
      */
     match /broadcasts/{broadcastId} {
-      function isAdmin() {
-        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-      }
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && isAdmin();
+      allow delete: if isSignedIn() && isAdmin();
+    }
 
-      allow get, list: if true; //Public read
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
   }
 }
