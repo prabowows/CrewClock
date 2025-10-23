@@ -6,11 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartConfig } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { BookUser, Users, Clock, Plane, Loader, Building, UserCheck } from 'lucide-react';
+import { Users, Loader, Building, UserCheck, UserX } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { collection, getDocs, query, where, Timestamp, orderBy, limit } from 'firebase/firestore';
 import type { CrewMember, AttendanceLog, Store } from '@/lib/types';
-import { format, isToday } from 'date-fns';
+import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
 import Image from 'next/image';
 
@@ -96,8 +96,7 @@ export default function Overview() {
         };
     }, [attendanceLogs, stores]);
     
-    // Static for now
-    const onLeaveCount = 2;
+    const absentTodayCount = totalCrew - presentTodayCount;
 
     const renderStatCard = (icon: React.ReactNode, value: number, label: string, loading: boolean, colorClass: string) => (
         <Card>
@@ -129,7 +128,7 @@ export default function Overview() {
                 {renderStatCard(<Users className="h-4 w-4" />, totalCrew, "Total Kru", isLoading, "text-primary")}
                 {renderStatCard(<Building className="h-4 w-4" />, totalStores, "Total Toko", isLoading, "text-primary")}
                 {renderStatCard(<UserCheck className="h-4 w-4" />, presentTodayCount, "Hadir Hari Ini", isLoading, "text-green-500")}
-                {renderStatCard(<Plane className="h-4 w-4" />, onLeaveCount, "Total Cuti", false, "text-red-500")}
+                {renderStatCard(<UserX className="h-4 w-4" />, absentTodayCount, "Absen Hari Ini", isLoading, "text-red-500")}
             </div>
 
             <div className='grid md:grid-cols-2 gap-6'>
