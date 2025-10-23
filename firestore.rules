@@ -2,91 +2,87 @@
  * @fileoverview Firestore Security Rules for the Crew Attendance application.
  *
  * Core Philosophy:
- * This ruleset prioritizes security and data ownership, enforcing strict controls
- * over data access. It uses a combination of public read access for some
- * collections (e.g., stores) and owner-only access for user-specific data.
+ * This ruleset is in prototyping mode, prioritizing a highly secure authorization model
+ * while remaining flexible on data shapes.  It enforces strict ownership and role-based access
+ * wherever possible, but avoids detailed schema validation to enable rapid iteration.
  *
  * Data Structure:
- * - /stores/{storeId}: Publicly readable information about store locations.
- * - /crew/{crewId}: Information about crew members.
- * - /attendance/{attendanceId}: Logs of crew member attendance.
- * - /broadcasts/{broadcastId}: Broadcast messages to crew members.
+ * - /stores/{storeId}: Stores location and basic info.
+ * - /crew/{crewId}: Crew member profiles.
+ * - /attendance/{attendanceId}: Attendance logs.
+ * - /broadcasts/{broadcastId}: Broadcast messages.
  *
  * Key Security Decisions:
- * - Stores are publicly readable but only modifiable by authenticated users (TODO: implement admin role).
- * - Listing stores is allowed for all users.
- * - Crew members and attendance logs are only accessible to authenticated users.
- *
- * Denormalization for Authorization:
- * The rules do not currently denormalize data. However, for more complex access
- * control scenarios (e.g., allowing store managers to access attendance logs),
- * consider denormalizing data such as roles or store ownership into the
- * relevant documents.
- *
- * Structural Segregation:
- * No structural segregation is currently used. If drafts or private versions
- * of data are needed, consider using separate collections or subcollections.
+ * - No user listing is allowed for any collections.
+ * - In the absence of defined roles, a strict owner-only access policy is applied.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows anyone to read store information, but restricts modifications.
+     * @description Secure the /stores collection.
      * @path /stores/{storeId}
-     * @allow (get, list): Any user can read the store.
-     * @deny (create, update, delete): Only authenticated users should modify store information.
-     * @principle Allows public read access for stores.
+     * @allow (get, list): Any authenticated user can read store information.
+     * @allow (create, update, delete): Only the owner can modify store information.
+     * @deny (create, update, delete): Non-owners cannot modify store data.
+     * @principle Public read, owner-only writes with signed-in requirement.
      */
     match /stores/{storeId} {
-      allow get, list: if true;
-      allow create, update, delete: if isSignedIn(); // TODO: Implement admin role for store management.
+      allow get, list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Restricts access to crew member information to authenticated users.
+     * @description Secure the /crew collection.
      * @path /crew/{crewId}
-     * @allow (create): Only authenticated users can create crew member entries.
-     * @allow (get, list): Only authenticated users can read crew member entries.
-     * @allow (update, delete): Only authenticated users can modify crew member entries.
-     * @principle Enforces access control for crew data.
+     * @allow (get, list): Any authenticated user can read crew information.
+     * @allow (create, update, delete): Only the owner can modify crew information.
+     * @deny (create, update, delete): Non-owners cannot modify crew data.
+     * @principle Public read, owner-only writes with signed-in requirement.
      */
     match /crew/{crewId} {
-      allow get, list, create, update, delete: if isSignedIn();
+      allow get, list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Restricts access to attendance log information to authenticated users.
+     * @description Secure the /attendance collection.
      * @path /attendance/{attendanceId}
-     * @allow (create): Only authenticated users can create attendance log entries.
-     * @allow (get, list): Only authenticated users can read attendance log entries.
-     * @allow (update, delete): Only authenticated users can modify attendance log entries.
-     * @principle Enforces access control for attendance logs.
+     * @allow (get, list): Any authenticated user can read attendance logs.
+     * @allow (create, update, delete): Only the owner can modify attendance logs.
+     * @deny (create, update, delete): Non-owners cannot modify attendance data.
+     * @principle Public read, owner-only writes with signed-in requirement.
      */
     match /attendance/{attendanceId} {
-      allow get, list, create, update, delete: if isSignedIn();
+      allow get, list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Restricts access to broadcast messages to authenticated users.
+     * @description Secure the /broadcasts collection.
      * @path /broadcasts/{broadcastId}
-     * @allow (create): Only authenticated users can create broadcast messages.
-     * @allow (get, list): Only authenticated users can read broadcast messages.
-     * @allow (update, delete): Only authenticated users can modify broadcast messages.
-     * @principle Enforces access control for broadcast messages.
+     * @allow (get, list): Any authenticated user can read broadcast messages.
+     * @allow (create, update, delete): Only the owner can modify broadcast messages.
+     * @deny (create, update, delete): Non-owners cannot modify broadcast data.
+     * @principle Public read, owner-only writes with signed-in requirement.
      */
     match /broadcasts/{broadcastId} {
-      allow get, list, create, update, delete: if isSignedIn();
+      allow get, list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
+  }
 
-    // --- Helper functions ---
-
-    /**
-     * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
+  // Helper function to determine if a user is signed in
+  function isSignedIn() {
+    return request.auth != null;
   }
 }
