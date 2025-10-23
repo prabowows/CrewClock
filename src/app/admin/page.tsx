@@ -21,51 +21,58 @@ export default function AdminPage() {
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="hidden">
+            <TabsList className="grid w-full grid-cols-5 mb-6">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="attendance">Attendance</TabsTrigger>
               <TabsTrigger value="stores">Stores</TabsTrigger>
               <TabsTrigger value="crew">Crew</TabsTrigger>
               <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
             </TabsList>
+            
             <TabsContent value="overview">
-              <div className="grid gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Today's Overview</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                     <Card className="p-4 flex flex-col items-center justify-center text-center">
-                        <Users className="w-8 h-8 mb-2 text-primary" />
-                        <p className="text-2xl font-bold">54</p>
-                        <p className="text-sm text-muted-foreground">Total Karyawan</p>
-                    </Card>
-                     <Card className="p-4 flex flex-col items-center justify-center text-center">
-                        <BookUser className="w-8 h-8 mb-2 text-primary" />
-                        <p className="text-2xl font-bold">42</p>
-                        <p className="text-sm text-muted-foreground">Total Hadir</p>
-                    </Card>
-                     <Card className="p-4 flex flex-col items-center justify-center text-center">
-                        <Users className="w-8 h-8 mb-2 text-yellow-500" />
-                        <p className="text-2xl font-bold">14</p>
-                        <p className="text-sm text-muted-foreground">Total Terlambat</p>
-                    </Card>
-                     <Card className="p-4 flex flex-col items-center justify-center text-center">
-                        <Users className="w-8 h-8 mb-2 text-red-500" />
-                        <p className="text-2xl font-bold">2</p>
-                        <p className="text-sm text-muted-foreground">Total Cuti</p>
-                    </Card>
-                  </CardContent>
-                </Card>
-                <div className="grid md:grid-cols-2 gap-6">
-                    <AttendanceLog />
-                    <CrewManagement />
-                </div>
-                 <div className="grid md:grid-cols-2 gap-6">
-                    <StoreManagement />
-                    <BroadcastMessage />
-                </div>
-              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Today's Overview</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                   <Card className="p-4 flex flex-col items-center justify-center text-center">
+                      <Users className="w-8 h-8 mb-2 text-primary" />
+                      <p className="text-2xl font-bold">54</p>
+                      <p className="text-sm text-muted-foreground">Total Karyawan</p>
+                  </Card>
+                   <Card className="p-4 flex flex-col items-center justify-center text-center">
+                      <BookUser className="w-8 h-8 mb-2 text-primary" />
+                      <p className="text-2xl font-bold">42</p>
+                      <p className="text-sm text-muted-foreground">Total Hadir</p>
+                  </Card>
+                   <Card className="p-4 flex flex-col items-center justify-center text-center">
+                      <Users className="w-8 h-8 mb-2 text-yellow-500" />
+                      <p className="text-2xl font-bold">14</p>
+                      <p className="text-sm text-muted-foreground">Total Terlambat</p>
+                  </Card>
+                   <Card className="p-4 flex flex-col items-center justify-center text-center">
+                      <Users className="w-8 h-8 mb-2 text-red-500" />
+                      <p className="text-2xl font-bold">2</p>
+                      <p className="text-sm text-muted-foreground">Total Cuti</p>
+                  </Card>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="attendance">
+              <AttendanceLog />
+            </TabsContent>
+            
+            <TabsContent value="stores">
+                <StoreManagement />
+            </TabsContent>
+
+            <TabsContent value="crew">
+                <CrewManagement />
+            </TabsContent>
+
+            <TabsContent value="broadcast">
+                <BroadcastMessage />
             </TabsContent>
           </Tabs>
         </div>
