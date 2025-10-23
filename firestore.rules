@@ -1,113 +1,97 @@
 /**
- * @fileoverview Firestore Security Rules for Crew Attendance App.
+ * @fileoverview Firestore Security Rules for the application.
  *
  * Core Philosophy:
- * This ruleset prioritizes security by enforcing a strict data access model.
- * Every read and write operation requires authentication.
- * Public listing of collections is disabled unless explicitly required.
+ * This ruleset prioritizes security by enforcing strict access controls on all data.
+ * It cautiously assumes no authentication or authorization unless explicitly granted.
  *
  * Data Structure:
- * The Firestore database is structured with the following top-level collections:
- * - /stores/{storeId}: Store location information.
- * - /crew/{crewId}: Crew member details.
- * - /attendance/{attendanceId}: Attendance logs for crew members.
- * - /broadcasts/{broadcastId}: Broadcast messages to crew members.
+ * - /stores/{storeId}: Stores information about store locations.
+ * - /crew/{crewId}: Stores information about crew members.
+ * - /attendance/{attendanceId}: Stores attendance logs for crew members.
+ * - /broadcasts/{broadcastId}: Stores broadcast messages for all crew members.
  *
  * Key Security Decisions:
- * - Listing of `attendance` collection is denied due to privacy concerns, as indicated by the original error.
- * - Owner-only access is enforced for store, crew and broadcast message data.
+ * - Public listing of any collections is disallowed, as this is a common source of accidental data leakage.
+ * - The default security posture is closed. All read and write access must be explicitly granted by a rule.
+ *
+ * Denormalization for Authorization:
+ *  None.
+ *
+ * Structural Segregation:
+ *  Not applicable in this version.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the resource, based on the document ID.
-     */
-    function isOwner(resourceId) {
-      return isSignedIn() && request.auth.uid == resourceId;
-    }
-
-     /**
-      * @description Checks if the user is the owner of the existing resource.
-      */
-    function isExistingOwner(resourceId) {
-      return isOwner(resourceId) && resource != null;
-    }
-
-    /**
-     * @description Rules for the /stores collection.
+     * @description Restricts access to the stores collection.
      * @path /stores/{storeId}
-     * @allow (get) Authenticated user can read a store.
-     * @allow (create) Authenticated user can create a store with their uid as the storeId.
-     * @deny (create) Unauthenticated user can't create a store.
-     * @deny (update) Authenticated user can't update a store if not the owner.
-     * @principle Enforces document ownership for writes, requires authentication for reads.
+     * @allow (get) Any authenticated user can get a store.
+     * @allow (create, update, delete) No one can create, update, or delete a store.
+     * @deny (list) No one can list stores.
+     * @principle Closed access.
      */
     match /stores/{storeId} {
       allow get: if isSignedIn();
-      allow list: if false; // Listing stores is not allowed.
-      allow create: if isOwner(storeId);
-      allow update: if isExistingOwner(storeId);
-      allow delete: if isExistingOwner(storeId);
-    }
-
-    /**
-     * @description Rules for the /crew collection.
-     * @path /crew/{crewId}
-     * @allow (get) Authenticated user can read a crew member.
-     * @allow (create) Authenticated user can create a crew member with their uid as the crewId.
-     * @deny (create) Unauthenticated user can't create a crew member.
-     * @deny (update) Authenticated user can't update a crew member if not the owner.
-     * @principle Enforces document ownership for writes, requires authentication for reads.
-     */
-    match /crew/{crewId} {
-      allow get: if isSignedIn();
-      allow list: if false; // Listing crew members is not allowed.
-      allow create: if isOwner(crewId);
-      allow update: if isExistingOwner(crewId);
-      allow delete: if isExistingOwner(crewId);
-    }
-
-    /**
-     * @description Rules for the /attendance collection.
-     * @path /attendance/{attendanceId}
-     * @allow (get) Authenticated user can read an attendance log.
-     * @deny (list) No one can list attendance logs.
-     * @allow (create) Authenticated user can create an attendance log.
-     * @deny (create) Unauthenticated user can't create an attendance log.
-     * @deny (update) Authenticated user can't update an attendance log.
-     */
-    match /attendance/{attendanceId} {
-      allow get: if isSignedIn();
-      allow list: if false; // Listing attendance logs is not allowed. Fixes the error reported by nextjs.
-      allow create: if isSignedIn();
+      allow list: if false;
+      allow create: if false;
       allow update: if false;
       allow delete: if false;
     }
 
     /**
-     * @description Rules for the /broadcasts collection.
+     * @description Restricts access to the crew collection.
+     * @path /crew/{crewId}
+     * @allow (get) Any authenticated user can get a crew member.
+     * @allow (create, update, delete) No one can create, update, or delete a crew member.
+     * @deny (list) Listing of crew members is denied, as reported by NextJS error.
+     * @principle Closed access.
+     */
+    match /crew/{crewId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Restricts access to the attendance collection.
+     * @path /attendance/{attendanceId}
+     * @allow (get) Any authenticated user can get an attendance log.
+     * @allow (create, update, delete) No one can create, update, or delete an attendance log.
+     * @deny (list) No one can list attendance logs.
+     * @principle Closed access.
+     */
+    match /attendance/{attendanceId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Restricts access to the broadcasts collection.
      * @path /broadcasts/{broadcastId}
-     * @allow (get) Authenticated user can read a broadcast message.
-     * @allow (create) Authenticated user can create a broadcast message with their uid as the broadcastId.
-     * @deny (create) Unauthenticated user can't create a broadcast message.
-     * @deny (update) Authenticated user can't update a broadcast message if not the owner.
-     * @principle Enforces document ownership for writes, requires authentication for reads.
+     * @allow (get) Any authenticated user can get a broadcast message.
+     * @allow (create, update, delete) No one can create, update, or delete a broadcast message.
+     * @deny (list) No one can list broadcast messages.
+     * @principle Closed access.
      */
     match /broadcasts/{broadcastId} {
       allow get: if isSignedIn();
-      allow list: if false; // Listing broadcasts is not allowed.
-      allow create: if isOwner(broadcastId);
-      allow update: if isExistingOwner(broadcastId);
-      allow delete: if isExistingOwner(broadcastId);
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
+  }
+
+  // Helper function to determine if a user is signed in.
+  function isSignedIn() {
+    return request.auth != null;
   }
 }
