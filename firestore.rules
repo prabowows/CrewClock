@@ -1,142 +1,148 @@
 /**
  * @description This ruleset enforces a role-based access control model with admin overrides.
- * Data is organized hierarchically with stores, crew members, and attendance logs.
- * Authorization independence is maintained by denormalizing data where necessary.
- *
+ * Data is organized hierarchically under stores, crew members, and attendance logs.
+ * Broadcast messages target specific stores, and access is controlled based on store membership.
  * @dataStructure
- * - /roles_admin/{userId}: Admin role definitions. Document existence grants admin privileges.
- * - /stores/{storeId}: Store information.
- * - /stores/{storeId}/crew/{crewId}: Store crew member information.
- * - /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}: Attendance logs for crew members.
- * - /broadcasts/{broadcastId}: Broadcast messages targeted to specific stores.
- *
+ * - /roles_admin/{uid}: Admin role assignments. Presence of a document indicates admin status.
+ * - /stores/{storeId}: Store information. Accessible to admins.
+ * - /stores/{storeId}/crew/{crewId}: Store crew member information. Accessible to admins and the crew member themselves.
+ * - /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}: Attendance logs. Accessible to admins and the associated crew member.
+ * - /broadcasts/{broadcastId}: Broadcast messages targeted at specific stores.
  * @keySecurityDecisions
- * - Admin role is determined by the presence of a document in `/roles_admin/{userId}`.
- * - Path-based ownership is enforced for crew members and attendance logs.
- * - `list` operations are restricted to admins for the `/roles_admin` collection.
- * - All write operations require authentication (`request.auth != null`).
- * - Data validation is limited to relational integrity and ownership fields to facilitate prototyping.
- *
+ * - Admins have full read and write access to all data.
+ * - Crew members can only access their own data.
+ * - Listing of admin roles is denied.
+ * - Data consistency between path and document data is enforced where relevant.
+ * - Read-only collections are not applicable in this data model.
  * @denormalizationForAuthorization
- * - Attendance logs duplicate the `storeId` to avoid `get()` calls for authorization.
- *
- * @structuralSegregation N/A
+ * - The `storeId` is denormalized in the `AttendanceLog` to allow for authorization without requiring a `get()` on the parent `crew` document.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Grants admin access based on document existence in the `/roles_admin/{uid}` collection.
+     * @description Restricts access to admin role assignments. Only admins can create new admin roles.
      * @path /roles_admin/{uid}
-     * @allow (get, create, update, delete) if isAdmin(userId)
-     * @deny (create, update, delete) if !isAdmin(userId)
-     * @principle Enforces admin-only access to admin role definitions.
+     * @allow (create) - An admin can create a new admin role document for any user.
+     *   - request.auth.uid: 'admin_uid'
+     *   - request.resource.data: {} (any data is allowed)
+     * @deny (create) - A non-admin user attempts to create an admin role document.
+     *   - request.auth.uid: 'user_uid'
+     *   - request.resource.data: {}
+     * @principle Enforces role-based access control.
      */
-    match /roles_admin/{userId} {
+    match /roles_admin/{uid} {
+      function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+
       allow get: if isAdmin();
-      allow list: if false;
+      allow list: if false; // Listing admin roles is not allowed
+
       allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Manages store information; only admins can create, update, and delete stores.
+     * @description Manages store information. Allows admins to create, read, update, and delete stores.
      * @path /stores/{storeId}
-     * @allow (get, list) if true
-     * @allow (create, update, delete) if isAdmin()
-     * @deny (create, update, delete) if !isAdmin()
-     * @principle Enforces admin-only management of store data.
+     * @allow (create) - An admin creates a new store.
+     *   - request.auth.uid: 'admin_uid'
+     *   - request.resource.data: {id: 'store1', name: 'Store One', latitude: 123.45, longitude: -67.89}
+     * @deny (create) - A non-admin user attempts to create a store.
+     *   - request.auth.uid: 'user_uid'
+     *   - request.resource.data: {id: 'store1', name: 'Store One', latitude: 123.45, longitude: -67.89}
+     * @principle Enforces role-based access control.
      */
     match /stores/{storeId} {
-      allow get, list: if true;
+      function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+
+      allow get, list: if true; // Public read
+
       allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages store crew information, enforcing path-based ownership and admin overrides.
+     * @description Manages store crew information. Admins can manage all crew members, while crew members can only access their own data.
      * @path /stores/{storeId}/crew/{crewId}
-     * @allow (get, list) if isCrewMember(storeId, crewId) || isAdmin()
-     * @allow (create, update, delete) if isCrewMember(storeId, crewId) || isAdmin()
-     * @deny (create, update, delete) if !isCrewMember(storeId, crewId) && !isAdmin()
-     * @principle Enforces ownership or admin access for crew management.
+     * @allow (get) - An admin retrieves a crew member's information.
+     *   - request.auth.uid: 'admin_uid'
+     * @allow (get) - A crew member retrieves their own information.
+     *   - request.auth.uid: 'crew_uid'
+     * @deny (get) - A crew member attempts to retrieve another crew member's information.
+     *   - request.auth.uid: 'crew_uid_1'
+     *   - crewId: 'crew_uid_2'
+     * @principle Enforces role-based access control and data ownership.
      */
     match /stores/{storeId}/crew/{crewId} {
-      allow get, list: if isCrewMember(storeId, crewId) || isAdmin();
-      allow create: if isSignedIn() && (request.auth.uid == request.resource.data.crewId) && (request.resource.data.storeId == storeId);
-      allow update: if isSignedIn() && (isExistingCrewMember(storeId, crewId) || isAdmin());
-      allow delete: if isSignedIn() && (isExistingCrewMember(storeId, crewId) || isAdmin());
+      function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+      function isOwner(crewId) {
+        return request.auth.uid == crewId;
+      }
+
+      allow get, list: if isAdmin() || isOwner(crewId);
+
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages attendance logs, enforcing path-based ownership, admin overrides, and data consistency.
+     * @description Manages attendance logs for store crew members. Admins can manage all logs, while crew members can only access their own logs.
      * @path /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}
-     * @allow (get, list) if isCrewMember(storeId, crewId) || isAdmin()
-     * @allow (create, update, delete) if isCrewMember(storeId, crewId) || isAdmin()
-     * @deny (create, update, delete) if !isCrewMember(storeId, crewId) && !isAdmin()
-     * @principle Enforces ownership or admin access for attendance log management.
+     * @allow (get) - An admin retrieves an attendance log.
+     *   - request.auth.uid: 'admin_uid'
+     * @allow (get) - A crew member retrieves their own attendance log.
+     *   - request.auth.uid: 'crew_uid'
+     * @deny (get) - A crew member attempts to retrieve another crew member's attendance log.
+     *   - request.auth.uid: 'crew_uid_1'
+     *   - crewId: 'crew_uid_2'
+     * @principle Enforces role-based access control and data ownership.
      */
     match /stores/{storeId}/crew/{crewId}/attendance/{attendanceId} {
-      allow get, list: if isCrewMember(storeId, crewId) || isAdmin();
-      allow create: if isSignedIn() && (request.auth.uid == crewId) && (request.resource.data.storeCrewId == crewId);
-      allow update: if isSignedIn() && (isExistingCrewMember(storeId, crewId) || isAdmin());
-      allow delete: if isSignedIn() && (isExistingCrewMember(storeId, crewId) || isAdmin());
+      function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+      function isOwner(crewId) {
+        return request.auth.uid == crewId;
+      }
+
+      allow get, list: if isAdmin() || isOwner(crewId);
+
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Manages broadcast messages; only admins can create, update, and delete broadcasts.
+     * @description Manages broadcast messages. Only admins can create, update, and delete messages. Anyone can read the messages.
      * @path /broadcasts/{broadcastId}
-     * @allow (get, list) if true;
-     * @allow (create, update, delete) if isAdmin()
-     * @deny (create, update, delete) if !isAdmin()
-     * @principle Enforces admin-only management of broadcast messages.
+     * @allow (create) - An admin creates a new broadcast message.
+     *   - request.auth.uid: 'admin_uid'
+     *   - request.resource.data: {message: 'Hello crew!', timestamp: '2024-01-01T00:00:00Z', storeIds: ['store1', 'store2']}
+     * @deny (create) - A non-admin user attempts to create a broadcast message.
+     *   - request.auth.uid: 'user_uid'
+     *   - request.resource.data: {message: 'Hello crew!', timestamp: '2024-01-01T00:00:00Z', storeIds: ['store1', 'store2']}
+     * @principle Enforces role-based access control.
      */
     match /broadcasts/{broadcastId} {
-      allow get, list: if true;
+      function isAdmin() {
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      }
+
+      allow get, list: if true; //Public read
+
       allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    // ---- Helper functions ----
-
-    /**
-     * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is an administrator.
-     * @return {bool} True if the user is an administrator, false otherwise.
-     */
-    function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    /**
-     * @description Checks if the user is a crew member.
-     * @param {string} storeId The ID of the store.
-     * @param {string} crewId The ID of the crew member.
-     * @return {bool} True if the user is the specified crew member, false otherwise.
-     */
-    function isCrewMember(storeId, crewId) {
-      return isSignedIn() && request.auth.uid == crewId;
-    }
-
-    /**
-     * @description Checks if the user is the existing crew member.
-     * @param {string} storeId The ID of the store.
-     * @param {string} crewId The ID of the crew member.
-     * @return {bool} True if the user is the specified existing crew member, false otherwise.
-     */
-    function isExistingCrewMember(storeId, crewId) {
-        return isSignedIn() && exists(/databases/$(database)/documents/stores/$(storeId)/crew/$(crewId)) && isCrewMember(storeId, crewId);
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
   }
 }

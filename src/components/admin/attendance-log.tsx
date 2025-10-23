@@ -50,7 +50,9 @@ import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { stores as staticStores, crewMembers as staticCrew, attendanceLogs as staticLogs } from '../../../scripts/seed.js';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, query, where, orderBy, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
+
 
 type AttendanceSummary = {
   crewMemberId: string;
@@ -72,9 +74,9 @@ const manualEntrySchema = z.object({
 
 
 export default function AttendanceLog() {
-  const [logs, setLogs] = useState<AttendanceLogType[]>(staticLogs);
-  const [stores, setStores] = useState<Store[]>(staticStores);
-  const [crewMembers, setCrewMembers] = useState<CrewMemberType[]>(staticCrew);
+  const [logs, setLogs] = useState<AttendanceLogType[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [crewMembers, setCrewMembers] = useState<CrewMemberType[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('all');
   const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(),
@@ -84,7 +86,7 @@ export default function AttendanceLog() {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLogType | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<AttendanceSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedLogForNotes, setSelectedLogForNotes] = useState<AttendanceLogType | null>(null);
   const [noteInput, setNoteInput] = useState("");
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
@@ -101,6 +103,33 @@ export default function AttendanceLog() {
       notes: "",
     },
   });
+
+  useEffect(() => {
+    setIsLoading(true);
+    const unsubLogs = onSnapshot(collection(db, "attendance"), 
+      (snapshot) => {
+        setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as AttendanceLogType)));
+        setIsLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching attendance:", error);
+        toast({ title: "Error", description: "Could not fetch attendance logs.", variant: "destructive" });
+        setIsLoading(false);
+      }
+    );
+    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
+        setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    });
+    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
+        setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMemberType)));
+    });
+
+    return () => {
+        unsubLogs();
+        unsubStores();
+        unsubCrew();
+    }
+  }, [toast]);
 
   const filteredLogs = useMemo(() => {
     if (!date?.from) return [];
@@ -147,7 +176,7 @@ export default function AttendanceLog() {
 
   const manualEntryFilteredCrew = useMemo(() => {
     if (!manualEntryStore) return [];
-    return crewMembers.map(c => ({...c, name: `${c.firstName} ${c.lastName}`})).filter(c => c.storeId === manualEntryStore);
+    return crewMembers.filter(c => c.storeId === manualEntryStore);
   }, [manualEntryStore, crewMembers]);
 
 
@@ -168,21 +197,62 @@ export default function AttendanceLog() {
   
   const handleSaveNote = async () => {
     if (!selectedLogForNotes) return;
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: "Menyimpan catatan dinonaktifkan saat menggunakan data statis.",
-        variant: "destructive"
-    });
-    setSelectedLogForNotes(null);
+    setIsLoading(true);
+    try {
+        const logRef = doc(db, "attendance", selectedLogForNotes.id);
+        await updateDoc(logRef, { notes: noteInput });
+        toast({
+            title: "Success",
+            description: "Note saved successfully.",
+        });
+        setSelectedLogForNotes(null);
+    } catch (error) {
+        console.error("Error saving note: ", error);
+        toast({
+            title: "Error",
+            description: "Could not save note.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   async function onManualEntrySubmit(values: z.infer<typeof manualEntrySchema>) {
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: "Entri manual dinonaktifkan saat menggunakan data statis.",
-        variant: "destructive"
-    });
-    setIsManualEntryOpen(false);
+    setIsLoading(true);
+    try {
+        const { date, time, ...rest } = values;
+        const [hours, minutes] = time.split(':').map(Number);
+        const timestamp = new Date(date);
+        timestamp.setHours(hours, minutes);
+
+        const crewMember = crewMembers.find(c => c.id === values.crewMemberId);
+        const store = stores.find(s => s.id === values.storeId);
+
+        await addDoc(collection(db, "attendance"), {
+            ...rest,
+            timestamp,
+            crewMemberName: crewMember?.name || 'N/A',
+            storeName: store?.name || 'N/A',
+            photoURL: '', // No photo for manual entry
+        });
+
+        toast({
+            title: "Success",
+            description: "Manual attendance entry added.",
+        });
+        setIsManualEntryOpen(false);
+        form.reset();
+    } catch (error) {
+        console.error("Error adding manual entry: ", error);
+        toast({
+            title: "Error",
+            description: "Could not add manual entry.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
 
@@ -392,15 +462,15 @@ export default function AttendanceLog() {
                     </TableCell>
                      <TableCell>
                         <DialogTrigger asChild>
-                           <div onClick={() => handleOpenNotesDialog(log)} className='w-full text-left cursor-pointer'>
+                           <button onClick={() => handleOpenNotesDialog(log)} className='w-full text-left cursor-pointer'>
                            {log.notes ? (
                                <p className="truncate max-w-[150px] hover:underline">{log.notes}</p>
                            ) : (
-                               <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
+                               <Button variant="ghost" size="icon" className="h-8 w-8">
                                    <Edit className="h-4 w-4 text-muted-foreground" />
                                </Button>
                            )}
-                          </div>
+                          </button>
                         </DialogTrigger>
                     </TableCell>
                   </TableRow>
@@ -447,7 +517,6 @@ export default function AttendanceLog() {
         <DialogTrigger asChild>
             <Button
                 className="fixed bottom-16 right-8 h-16 w-16 rounded-full shadow-lg"
-                disabled
             >
                 <Plus className="h-8 w-8" />
                 <span className="sr-only">Add Manual Entry</span>
@@ -633,5 +702,3 @@ export default function AttendanceLog() {
     </div>
   );
 }
-
-    

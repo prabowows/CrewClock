@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import type { Store } from '@/lib/types';
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,17 +23,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { stores as staticStores } from '../../../scripts/seed.js';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+
 
 const storeSchema = z.object({
   name: z.string().min(2, "Store name must be at least 2 characters."),
-  latitude: z.coerce.number().min(-90, "Latitude must be between -90 and 90."),
-  longitude: z.coerce.number().min(-180, "Longitude must be between -180 and 180."),
+  latitude: z.coerce.number().min(-90, "Latitude must be between -90 and 90.").max(90, "Latitude must be between -90 and 90."),
+  longitude: z.coerce.number().min(-180, "Longitude must be between -180 and 180.").max(180, "Longitude must be between -180 and 180."),
 });
 
 export default function StoreManagement() {
-  const [stores, setStores] = useState<Store[]>(staticStores);
+  const [stores, setStores] = useState<Store[]>([]);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof storeSchema>>({
@@ -44,6 +47,20 @@ export default function StoreManagement() {
       longitude: "" as any,
     },
   });
+
+  useEffect(() => {
+    setIsLoading(true);
+    const unsubscribe = onSnapshot(collection(db, "stores"), (snapshot) => {
+        setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching stores:", error);
+        toast({ title: "Error", description: "Could not fetch stores.", variant: "destructive" });
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
 
   useEffect(() => {
     if (editingStore) {
@@ -62,21 +79,54 @@ export default function StoreManagement() {
   }, [editingStore, form]);
 
   async function onSubmit(values: z.infer<typeof storeSchema>) {
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: "Menambah/mengubah toko dinonaktifkan saat menggunakan data statis.",
-        variant: "destructive"
-    });
-    setEditingStore(null);
-    form.reset({ name: "", latitude: "" as any, longitude: "" as any });
+    setIsLoading(true);
+    try {
+      if (editingStore) {
+        const storeRef = doc(db, "stores", editingStore.id);
+        await updateDoc(storeRef, values);
+        toast({
+          title: "Success",
+          description: `Store ${values.name} updated.`,
+        });
+      } else {
+        await addDoc(collection(db, "stores"), values);
+        toast({
+          title: "Success",
+          description: `Store ${values.name} added.`,
+        });
+      }
+      setEditingStore(null);
+      form.reset();
+    } catch (error) {
+      console.error("Error saving store:", error);
+      toast({
+        title: "Error",
+        description: "Could not save store.",
+        variant: "destructive",
+      });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   const handleDelete = async (storeId: string) => {
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: "Menghapus toko dinonaktifkan saat menggunakan data statis.",
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, "stores", storeId));
+      toast({
+        title: "Success",
+        description: "Store deleted.",
+      });
+    } catch (error) {
+      console.error("Error deleting store:", error);
+      toast({
+        title: "Error",
+        description: "Could not delete store.",
         variant: "destructive"
-    });
+      });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   const handleEdit = (store: Store) => {
@@ -85,15 +135,15 @@ export default function StoreManagement() {
   
   const handleCancelEdit = () => {
     setEditingStore(null);
-    form.reset({
-      name: "",
-      latitude: "" as any,
-      longitude: "" as any,
-    });
   }
 
   return (
-    <div className="grid md:grid-cols-2 gap-8">
+    <div className="grid md:grid-cols-2 gap-8 relative">
+       {isLoading && (
+        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
+          <Loader className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
       <div>
         <h3 className="text-lg font-semibold mb-4 text-primary">{editingStore ? "Edit Store" : "Add New Store"}</h3>
         <Form {...form}>
@@ -105,7 +155,7 @@ export default function StoreManagement() {
                 <FormItem>
                   <FormLabel>Store Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Downtown Central" {...field} />
+                    <Input placeholder="e.g., Downtown Central" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -119,7 +169,7 @@ export default function StoreManagement() {
                   <FormItem className="w-full">
                     <FormLabel>Latitude</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="e.g., 34.0522" {...field} />
+                      <Input type="number" step="any" placeholder="e.g., 34.0522" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -132,7 +182,7 @@ export default function StoreManagement() {
                   <FormItem className="w-full">
                     <FormLabel>Longitude</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="e.g., -118.2436" {...field} />
+                      <Input type="number" step="any" placeholder="e.g., -118.2436" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -140,12 +190,12 @@ export default function StoreManagement() {
               />
             </div>
             <div className="flex gap-2">
-                <Button type="submit">
-                    {editingStore ? <Edit className="mr-2" /> : <PlusCircle className="mr-2" />} 
+                <Button type="submit" disabled={isLoading}>
+                    {editingStore ? <Edit className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />} 
                     {editingStore ? "Update Store" : "Add Store"}
                 </Button>
                 {editingStore && (
-                    <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                    <Button variant="outline" onClick={handleCancelEdit} disabled={isLoading}>Cancel</Button>
                 )}
             </div>
           </form>
@@ -168,12 +218,12 @@ export default function StoreManagement() {
                   <TableCell className="font-medium">{store.name}</TableCell>
                   <TableCell>{store.latitude}, {store.longitude}</TableCell>
                   <TableCell className='text-right space-x-2'>
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(store)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(store)} disabled={isLoading}>
                         <Edit className="h-4 w-4" />
                     </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className='text-destructive hover:text-destructive'>
+                            <Button variant="ghost" size="icon" className='text-destructive hover:text-destructive' disabled={isLoading}>
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         </AlertDialogTrigger>
@@ -200,5 +250,3 @@ export default function StoreManagement() {
     </div>
   );
 }
-
-    

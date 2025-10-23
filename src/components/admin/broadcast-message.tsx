@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Trash2, Link2 } from 'lucide-react';
+import { Send, Trash2, Link2, Loader } from 'lucide-react';
 import type { BroadcastMessage as BroadcastMessageType } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -26,7 +26,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from '../ui/card';
-import { broadcastMessages as staticBroadcasts } from '../../../scripts/seed.js';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
+
 
 const broadcastSchema = z.object({
   message: z.string().min(10, "Message must be at least 10 characters.").max(500, "Message cannot exceed 500 characters."),
@@ -34,7 +36,8 @@ const broadcastSchema = z.object({
 });
 
 export default function BroadcastMessage() {
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessageType[]>(staticBroadcasts);
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessageType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof broadcastSchema>>({
@@ -45,25 +48,72 @@ export default function BroadcastMessage() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof broadcastSchema>) {
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: "Mengirim pesan dinonaktifkan saat menggunakan data statis.",
-        variant: "destructive"
+  useEffect(() => {
+    setIsLoading(true);
+    const q = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setBroadcasts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as BroadcastMessageType)));
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching broadcasts:", error);
+      toast({ title: "Error", description: "Could not fetch broadcast messages.", variant: "destructive" });
+      setIsLoading(false);
     });
-    form.reset();
+
+    return () => unsubscribe();
+  }, [toast]);
+
+  async function onSubmit(values: z.infer<typeof broadcastSchema>) {
+    setIsLoading(true);
+    try {
+        await addDoc(collection(db, "broadcasts"), {
+            ...values,
+            timestamp: new Date(),
+        });
+        toast({
+            title: "Success!",
+            description: "Your broadcast message has been sent.",
+        });
+        form.reset();
+    } catch (error) {
+        console.error("Error sending broadcast: ", error);
+        toast({
+            title: "Error",
+            description: "Could not send broadcast message.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   const handleDelete = async (id: string) => {
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: "Menghapus pesan dinonaktifkan saat menggunakan data statis.",
-        variant: "destructive"
-    });
+    setIsLoading(true);
+    try {
+        await deleteDoc(doc(db, "broadcasts", id));
+        toast({
+            title: "Success",
+            description: "Broadcast message deleted.",
+        });
+    } catch (error) {
+        console.error("Error deleting broadcast:", error);
+        toast({
+            title: "Error",
+            description: "Could not delete broadcast message.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
-    <div className="grid md:grid-cols-2 gap-8">
+    <div className="grid md:grid-cols-2 gap-8 relative">
+       {isLoading && (
+        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
+          <Loader className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
       <div>
         <h3 className="text-lg font-semibold mb-4 text-primary">Send New Broadcast</h3>
         <Form {...form}>
@@ -79,6 +129,7 @@ export default function BroadcastMessage() {
                       placeholder="Type your announcement here... e.g., 'Team meeting at 5 PM today.'"
                       className="min-h-[150px] text-base"
                       {...field}
+                      disabled={isLoading}
                     />
                   </FormControl>
                   <FormMessage />
@@ -96,13 +147,14 @@ export default function BroadcastMessage() {
                       placeholder="https://example.com/document.pdf"
                       className="text-base"
                       {...field}
+                      disabled={isLoading}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" size="lg" className="w-full">
+            <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
               <Send className="mr-2 h-5 w-5" /> Send Broadcast
             </Button>
           </form>
@@ -144,7 +196,7 @@ export default function BroadcastMessage() {
                                 <TableCell className='text-right'>
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className='text-destructive hover:text-destructive'>
+                                            <Button variant="ghost" size="icon" className='text-destructive hover:text-destructive' disabled={isLoading}>
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </AlertDialogTrigger>
@@ -178,5 +230,3 @@ export default function BroadcastMessage() {
     </div>
   );
 }
-
-    

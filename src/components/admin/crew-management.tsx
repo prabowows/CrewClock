@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import type { CrewMember, Store } from '@/lib/types';
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +24,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { stores as staticStores, crewMembers as staticCrew } from '../../../scripts/seed.js';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
 const crewSchema = z.object({
   name: z.string().min(2, "Crew member name must be at least 2 characters."),
@@ -32,9 +33,10 @@ const crewSchema = z.object({
 });
 
 export default function CrewManagement() {
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>(staticCrew.map(c => ({...c, name: `${c.firstName} ${c.lastName}`})));
-  const [stores, setStores] = useState<Store[]>(staticStores);
+  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [editingCrew, setEditingCrew] = useState<CrewMember | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof crewSchema>>({
@@ -44,6 +46,27 @@ export default function CrewManagement() {
       storeId: "",
     },
   });
+
+  useEffect(() => {
+      setIsLoading(true);
+      const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
+          setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+          setIsLoading(false);
+      }, (error) => {
+          console.error("Error fetching crew:", error);
+          toast({ title: "Error", description: "Could not fetch crew members.", variant: "destructive" });
+          setIsLoading(false);
+      });
+
+      const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
+          setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+      });
+
+      return () => {
+          unsubCrew();
+          unsubStores();
+      };
+  }, [toast]);
   
   useEffect(() => {
     if (editingCrew) {
@@ -60,21 +83,54 @@ export default function CrewManagement() {
   }, [editingCrew, form]);
 
   async function onSubmit(values: z.infer<typeof crewSchema>) {
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: "Menambah/mengubah kru dinonaktifkan saat menggunakan data statis.",
-        variant: "destructive"
-    });
-    setEditingCrew(null);
-    form.reset({ name: "", storeId: "" });
+    setIsLoading(true);
+    try {
+        if (editingCrew) {
+            const crewRef = doc(db, "crew", editingCrew.id);
+            await updateDoc(crewRef, values);
+            toast({
+                title: "Success",
+                description: `Crew member ${values.name} updated.`,
+            });
+        } else {
+            await addDoc(collection(db, "crew"), values);
+            toast({
+                title: "Success",
+                description: `Crew member ${values.name} added.`,
+            });
+        }
+        setEditingCrew(null);
+        form.reset();
+    } catch (error) {
+        console.error("Error saving crew member:", error);
+        toast({
+            title: "Error",
+            description: "Could not save crew member.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   const handleDelete = async (crewId: string, crewName: string) => {
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: "Menghapus kru dinonaktifkan saat menggunakan data statis.",
-        variant: "destructive"
-    });
+    setIsLoading(true);
+    try {
+        await deleteDoc(doc(db, "crew", crewId));
+        toast({
+            title: "Success",
+            description: `Crew member ${crewName} deleted.`,
+        });
+    } catch (error) {
+        console.error("Error deleting crew member:", error);
+        toast({
+            title: "Error",
+            description: "Could not delete crew member.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
   
   const handleEdit = (crew: CrewMember) => {
@@ -86,7 +142,12 @@ export default function CrewManagement() {
   };
 
   return (
-    <div className="grid md:grid-cols-2 gap-8">
+    <div className="grid md:grid-cols-2 gap-8 relative">
+       {isLoading && (
+        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
+          <Loader className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
       <div>
         <h3 className="text-lg font-semibold mb-4 text-primary">{editingCrew ? "Edit Crew Member" : "Add New Crew Member"}</h3>
         <Form {...form}>
@@ -98,7 +159,7 @@ export default function CrewManagement() {
                 <FormItem>
                   <FormLabel>Crew Member Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Alex Johnson" {...field} />
+                    <Input placeholder="e.g., Alex Johnson" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -110,7 +171,7 @@ export default function CrewManagement() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Assigned Store</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} defaultValue="">
+                  <Select onValueChange={field.onChange} value={field.value} defaultValue="" disabled={isLoading}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a store" />
@@ -127,12 +188,12 @@ export default function CrewManagement() {
               )}
             />
             <div className="flex gap-2">
-                <Button type="submit">
-                    {editingCrew ? <Edit className="mr-2" /> : <PlusCircle className="mr-2" />}
+                <Button type="submit" disabled={isLoading}>
+                    {editingCrew ? <Edit className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                     {editingCrew ? "Update Crew" : "Add Crew Member"}
                 </Button>
                 {editingCrew && (
-                    <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                    <Button variant="outline" onClick={handleCancelEdit} disabled={isLoading}>Cancel</Button>
                 )}
             </div>
           </form>
@@ -155,12 +216,12 @@ export default function CrewManagement() {
                   <TableCell className="font-medium">{crew.name}</TableCell>
                   <TableCell>{stores.find(s => s.id === crew.storeId)?.name || 'N/A'}</TableCell>
                   <TableCell className='text-right space-x-2'>
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(crew)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(crew)} disabled={isLoading}>
                         <Edit className="h-4 w-4" />
                     </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className='text-destructive hover:text-destructive'>
+                            <Button variant="ghost" size="icon" className='text-destructive hover:text-destructive' disabled={isLoading}>
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         </AlertDialogTrigger>
@@ -193,5 +254,3 @@ export default function CrewManagement() {
     </div>
   );
 }
-
-    

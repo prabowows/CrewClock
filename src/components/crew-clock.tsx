@@ -26,13 +26,13 @@ import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
-import { stores as staticStores, crewMembers as staticCrew, attendanceLogs as staticLogs, broadcastMessages as staticBroadcasts } from '../../scripts/seed.js';
-
+import { db } from "@/lib/firebase";
+import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
 
 export default function CrewClock() {
-  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>(staticCrew.map(c => ({...c, name: `${c.firstName} ${c.lastName}`})));
-  const [stores, setStores] = useState<Store[]>(staticStores);
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>(staticBroadcasts);
+  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<string | null>(null);
@@ -55,6 +55,27 @@ export default function CrewClock() {
   const { toast } = useToast();
 
   useEffect(() => {
+    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
+      setAllCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+    });
+    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
+      setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    });
+
+    const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
+    const unsubBroadcasts = onSnapshot(qBroadcasts, (snapshot) => {
+        const broadcastsData: BroadcastMessage[] = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            broadcastsData.push({
+                id: doc.id,
+                ...data,
+                timestamp: (data.timestamp as Timestamp).toDate(),
+            } as BroadcastMessage);
+        });
+        setBroadcasts(broadcastsData);
+    });
+
     // Get location once on mount
     setLocationError(null);
     if (navigator.geolocation) {
@@ -74,6 +95,12 @@ export default function CrewClock() {
       setLocationError("Geolocation is not supported by this browser.");
       setIsLocating(false);
     }
+
+    return () => {
+      unsubCrew();
+      unsubStores();
+      unsubBroadcasts();
+    };
   }, []);
   
   const filteredCrewMembers = useMemo(() => {
@@ -128,16 +155,28 @@ export default function CrewClock() {
       return;
     }
   
-    const lastLog = staticLogs
-        .filter(log => log.crewMemberId === selectedCrewId)
-        .sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
-
-    if (lastLog) {
-        setLastAction(lastLog);
-    } else {
+    const q = query(
+      collection(db, 'attendance'),
+      where('crewMemberId', '==', selectedCrewId),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+  
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const doc = snapshot.docs[0];
+        const data = doc.data();
+        setLastAction({
+          id: doc.id,
+          ...data,
+          timestamp: (data.timestamp as Timestamp).toDate(),
+        } as AttendanceLog);
+      } else {
         setLastAction(null);
-    }
-
+      }
+    });
+  
+    return () => unsubscribe();
   }, [selectedCrewId]);
 
 
@@ -196,19 +235,42 @@ export default function CrewClock() {
     if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift) return;
   
     setIsProcessing(true);
+  
+    try {
+      const photoURL = capturedImage;
+  
+      await addDoc(collection(db, 'attendance'), {
+        crewMemberId: selectedCrewMember.id,
+        crewMemberName: selectedCrewMember.name,
+        storeId: assignedStore.id,
+        storeName: assignedStore.name,
+        timestamp: new Date(),
+        type,
+        photoURL: photoURL,
+        shift: selectedShift,
+      });
+  
+      toast({
+        title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
+        description: `${selectedCrewMember.name} at ${assignedStore.name}`,
+        variant: 'default',
+      });
+      // Reset to initial state
+      setCapturedImage(null);
+      setSelectedCrewId(null);
+      setSelectedShift(null);
+      setSelectedStoreId(null);
 
-    toast({
-        title: "Fungsi Dinonaktifkan",
-        description: `Clock-${type} dinonaktifkan saat menggunakan data statis.`,
-        variant: "destructive"
-    });
-    
-    // Reset to initial state
-    setCapturedImage(null);
-    setSelectedCrewId(null);
-    setSelectedShift(null);
-    setSelectedStoreId(null);
-    setIsProcessing(false);
+    } catch (e) {
+      console.error('Error during clock action: ', e);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not record attendance. Check Firestore rules.',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
 
@@ -410,5 +472,3 @@ export default function CrewClock() {
     </Card>
   );
 }
-
-    
