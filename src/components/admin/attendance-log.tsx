@@ -108,13 +108,16 @@ export default function AttendanceLog() {
     setIsLoading(true);
     try {
       const logSnapshot = await getDocs(collection(db, "attendance"));
-      setLogs(logSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as AttendanceLogType)));
+      const fetchedLogs = logSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as AttendanceLogType));
+      setLogs(fetchedLogs);
       
       const storeSnapshot = await getDocs(collection(db, "stores"));
-      setStores(storeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+      const fetchedStores = storeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store));
+      setStores(fetchedStores);
       
       const crewSnapshot = await getDocs(collection(db, "crew"));
-      setCrewMembers(crewSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMemberType)));
+      const fetchedCrew = crewSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMemberType));
+      setCrewMembers(fetchedCrew);
 
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -126,7 +129,7 @@ export default function AttendanceLog() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [toast]);
 
   const filteredLogs = useMemo(() => {
     if (!date?.from) return [];
@@ -165,7 +168,6 @@ export default function AttendanceLog() {
         }
         summary[log.crewMemberId].logs.push(log);
     });
-    // Sort logs for each crew member by timestamp descending
     Object.values(summary).forEach(s => s.logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()));
     
     return Object.values(summary).sort((a,b) => a.crewMemberName.localeCompare(b.crewMemberName));
@@ -176,14 +178,13 @@ export default function AttendanceLog() {
     return crewMembers.filter(c => c.storeId === manualEntryStore);
   }, [manualEntryStore, crewMembers]);
 
-
   const handleApplyDateRange = () => {
     setDate(selectedDateRange);
     setIsPopoverOpen(false);
   };
   
   const handleCancel = () => {
-    setSelectedDateRange(date); // Revert to the last applied date range
+    setSelectedDateRange(date);
     setIsPopoverOpen(false);
   }
 
@@ -203,7 +204,7 @@ export default function AttendanceLog() {
             description: "Note saved successfully.",
         });
         setSelectedLogForNotes(null);
-        fetchData(); // Refresh data
+        await fetchData();
     } catch (error) {
         console.error("Error saving note: ", error);
         toast({
@@ -232,7 +233,7 @@ export default function AttendanceLog() {
             timestamp,
             crewMemberName: crewMember?.name || 'N/A',
             storeName: store?.name || 'N/A',
-            photoURL: '', // No photo for manual entry
+            photoURL: '',
         });
 
         toast({
@@ -241,7 +242,7 @@ export default function AttendanceLog() {
         });
         setIsManualEntryOpen(false);
         form.reset();
-        fetchData(); // Refresh data
+        await fetchData();
     } catch (error) {
         console.error("Error adding manual entry: ", error);
         toast({
@@ -538,7 +539,7 @@ export default function AttendanceLog() {
                                 onValueChange={(value) => {
                                   field.onChange(value);
                                   setManualEntryStore(value);
-                                  form.setValue('crewMemberId', ''); // Reset crew member selection
+                                  form.setValue('crewMemberId', '');
                                 }} 
                                 value={field.value}
                               >
@@ -699,4 +700,5 @@ export default function AttendanceLog() {
     </div>
   );
 }
+
     
