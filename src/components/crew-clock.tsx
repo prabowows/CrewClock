@@ -258,7 +258,7 @@ export default function CrewClock() {
     addDoc(collectionRef, attendanceData)
       .then(() => {
         toast({
-          title: `Successfully Clocked ${type === 'in' ? 'Out' : 'In'}!`,
+          title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
           description: `${selectedCrewMember.name} at ${assignedStore.name}`,
           variant: 'default',
         });
@@ -341,7 +341,7 @@ export default function CrewClock() {
                       {broadcasts.map((message) => (
                           <CarouselItem key={message.id}>
                               <div className="p-1">
-                                  <Card className="border-l-8 border-l-primary">
+                                  <Card className="border-l-8 border-l-primary shadow-sm">
                                       <CardContent className="p-4 space-y-2">
                                           <p className="text-sm text-foreground/90">{message.message}</p>
                                           {message.attachmentURL && (
@@ -471,7 +471,7 @@ export default function CrewClock() {
           </Alert>
 
           <Button 
-            className="w-full h-14 text-lg rounded-xl" 
+            className="w-full h-14 text-lg rounded-xl bg-[#e42841] hover:bg-[#e42841]/90" 
             disabled={!canClock || isProcessing} 
             onClick={() => handleClockAction(nextActionType)}
           >
@@ -484,5 +484,3 @@ export default function CrewClock() {
     </div>
   );
 }
-
-    

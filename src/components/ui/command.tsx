@@ -1,473 +1,155 @@
-"use client";
+"use client"
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, WifiOff, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell, Link2 } from "lucide-react";
-import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
-import { calculateDistance } from "@/lib/location";
-import { useToast } from "@/hooks/use-toast";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { formatDistanceToNow } from 'date-fns';
-import Autoplay from "embla-carousel-autoplay";
-import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
+import * as React from "react"
+import { type DialogProps } from "@radix-ui/react-dialog"
+import { Command as CommandPrimitive } from "cmdk"
+import { Search } from "lucide-react"
 
-export default function CrewClock() {
-  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
-  const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
-  const [selectedShift, setSelectedShift] = useState<string | null>(null);
-  const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [isLocating, setIsLocating] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [distance, setDistance] = useState<number | null>(null);
-  const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+import { cn } from "@/lib/utils"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 
-  const autoplay = useRef(
-    Autoplay({ delay: 5000, stopOnInteraction: true })
-  );
+const Command = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive
+    ref={ref}
+    className={cn(
+      "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
+      className
+    )}
+    {...props}
+  />
+))
+Command.displayName = CommandPrimitive.displayName
 
-  const { toast } = useToast();
+interface CommandDialogProps extends DialogProps {}
 
-  useEffect(() => {
-    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
-      setAllCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
-    });
-    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
-      setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
-    });
-
-    const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
-    const unsubBroadcasts = onSnapshot(qBroadcasts, (snapshot) => {
-        const broadcastsData: BroadcastMessage[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            broadcastsData.push({
-                id: doc.id,
-                ...data,
-                timestamp: (data.timestamp as Timestamp).toDate(),
-            } as BroadcastMessage);
-        });
-        setBroadcasts(broadcastsData);
-    });
-
-    // Get location once on mount
-    setLocationError(null);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setLocation({ lat: latitude, lon: longitude });
-          setIsLocating(false);
-        },
-        (error) => {
-          setLocationError("Position update is unavailable.");
-          setIsLocating(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    } else {
-      setLocationError("Geolocation is not supported by this browser.");
-      setIsLocating(false);
-    }
-
-    return () => {
-      unsubCrew();
-      unsubStores();
-      unsubBroadcasts();
-    };
-  }, []);
-  
-  const filteredCrewMembers = useMemo(() => {
-    if (!selectedStoreId) return [];
-    return allCrewMembers.filter(crew => crew.storeId === selectedStoreId);
-  }, [selectedStoreId, allCrewMembers]);
-
-  const selectedCrewMember = useMemo(
-    () => allCrewMembers.find((c) => c.id === selectedCrewId),
-    [selectedCrewId, allCrewMembers]
-  );
-  
-  const assignedStore = useMemo(
-    () => stores.find((s) => s.id === selectedCrewMember?.storeId),
-    [selectedCrewMember, stores]
-  );
-
-  // Effect to calculate distance when location or store changes
-  useEffect(() => {
-    if (location && assignedStore) {
-      const dist = calculateDistance(
-        location.lat,
-        location.lon,
-        assignedStore.latitude,
-        assignedStore.longitude
-      );
-      setDistance(dist);
-    } else {
-      setDistance(null);
-    }
-  }, [location, assignedStore]);
-  
-  const handleStoreChange = (storeId: string) => {
-    setSelectedStoreId(storeId);
-    setSelectedCrewId(null);
-    setSelectedShift(null);
-    setCapturedImage(null);
-    setLastAction(null);
-  };
-  
-  const handleCrewChange = (crewId: string) => {
-    setSelectedCrewId(crewId);
-    setSelectedShift(null);
-    setCapturedImage(null);
-  }
-
-  useEffect(() => {
-    if (!selectedCrewId) {
-      setLastAction(null);
-      setCapturedImage(null);
-      setSelectedShift(null);
-      return;
-    }
-  
-    const q = query(
-      collection(db, 'attendance'),
-      where('crewMemberId', '==', selectedCrewId),
-      orderBy('timestamp', 'desc'),
-      limit(1)
-    );
-  
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        const data = doc.data();
-        setLastAction({
-          id: doc.id,
-          ...data,
-          timestamp: (data.timestamp as Timestamp).toDate(),
-        } as AttendanceLog);
-      } else {
-        setLastAction(null);
-      }
-    });
-  
-    return () => unsubscribe();
-  }, [selectedCrewId]);
-
-
-  const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage && !!selectedShift;
-  const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage && !!selectedShift;
-
-  // Effect for camera
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-  
-    const getCameraPermission = async () => {
-      if (!selectedCrewId) {
-        setHasCameraPermission(null);
-        if (videoRef.current?.srcObject) {
-            (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-            videoRef.current.srcObject = null;
-        }
-        return;
-      }
-      if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Kamera Tidak Didukung',
-          description: 'Browser Anda tidak mendukung akses kamera.',
-        });
-        return;
-      }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-        setHasCameraPermission(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Akses Kamera Ditolak',
-          description: 'Mohon izinkan akses kamera di pengaturan browser Anda.',
-        });
-      }
-    };
-  
-    getCameraPermission();
-  
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [selectedCrewId, toast]);
-
-  const handleClockAction = async (type: 'in' | 'out') => {
-    if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift) return;
-  
-    setIsProcessing(true);
-  
-    try {
-      const photoURL = capturedImage;
-  
-      await addDoc(collection(db, 'attendance'), {
-        crewMemberId: selectedCrewMember.id,
-        crewMemberName: selectedCrewMember.name,
-        storeId: assignedStore.id,
-        storeName: assignedStore.name,
-        timestamp: new Date(),
-        type,
-        photoURL: photoURL,
-        shift: selectedShift,
-      });
-  
-      toast({
-        title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
-        description: `${selectedCrewMember.name} at ${assignedStore.name}`,
-        variant: 'default',
-      });
-      // Reset to initial state
-      setCapturedImage(null);
-      setSelectedCrewId(null);
-      setSelectedShift(null);
-      setSelectedStoreId(null);
-
-    } catch (e) {
-      console.error('Error during clock action: ', e);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not record attendance. Check Firestore rules.',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-
-  const handleTakePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        // Flip the image horizontally for a mirror effect
-        context.translate(video.videoWidth, 0);
-        context.scale(-1, 1);
-        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-        // Compress the image
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        setCapturedImage(dataUrl);
-      }
-
-      // Stop the camera stream
-      const stream = video.srcObject as MediaStream;
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    }
-  };
-
-  const handleRetakePhoto = () => {
-    setCapturedImage(null);
-    // The camera permission useEffect will re-run and start the stream again
-    const currentId = selectedCrewId;
-    setSelectedCrewId(null);
-    setTimeout(() => setSelectedCrewId(currentId), 0);
-  };
-
-  const getStatus = () => {
-    if (isLocating) return <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Mendapatkan lokasi Anda...</AlertDescription>;
-    if (locationError) return <AlertDescription className="flex items-center text-destructive"><WifiOff className="mr-2 h-4 w-4" />Tidak bisa mendapatkan lokasi: Gagal memperbarui posisi.</AlertDescription>;
-    if (!selectedCrewId) return <AlertDescription>Silakan pilih toko dan nama Anda untuk memulai.</AlertDescription>;
-    if (distance === null) return <AlertDescription>Memverifikasi jarak dari toko...</AlertDescription>;
-    if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km dari toko untuk clock in/out.</AlertDescription>;
-    return <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance.toFixed(2)} km). Siap untuk clock in/out.</AlertDescription>;
-  }
-
+const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
   return (
-    <Card className="w-full max-w-md shadow-2xl">
-      <CardHeader>
-        <CardTitle className="text-3xl font-bold text-center text-primary">FruitHub</CardTitle>
-        <CardDescription className="text-center">
-          Pilih toko, nama Anda dan lakukan clock in atau out.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {broadcasts.length > 0 && (
-          <Card className="bg-primary/10 border-primary/20">
-              <CardHeader className="p-4">
-                  <CardTitle className="text-lg flex items-center">
-                      <Bell className="mr-2 h-5 w-5 text-primary"/>
-                      Papan Pengumuman
-                  </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                  <Carousel
-                      plugins={[autoplay.current]}
-                      opts={{ align: "start", loop: true }}
-                      className="w-full"
-                      onMouseEnter={autoplay.current.stop}
-                      onMouseLeave={autoplay.current.reset}
-                  >
-                      <CarouselContent>
-                          {broadcasts.map((message) => (
-                              <CarouselItem key={message.id}>
-                                  <div className="p-1">
-                                      <Card>
-                                          <CardContent className="flex flex-col p-4 space-y-2">
-                                              <p className="text-sm text-foreground/90">{message.message}</p>
-                                              {message.attachmentURL && (
-                                                <a
-                                                  href={message.attachmentURL}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-primary hover:underline text-sm mt-2 inline-flex items-center gap-1"
-                                                >
-                                                  <Link2 className="h-3 w-3" />
-                                                  Lampiran
-                                                </a>
-                                              )}
-                                              <p className="text-xs text-right text-muted-foreground pt-2">
-                                                  {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                                              </p>
-                                          </CardContent>
-                                      </Card>
-                                  </div>
-                              </CarouselItem>
-                          ))}
-                      </CarouselContent>
-                      <CarouselPrevious className="hidden sm:flex -left-4" />
-                      <CarouselNext className="hidden sm:flex -right-4" />
-                  </Carousel>
-              </CardContent>
-          </Card>
-        )}
+    <Dialog {...props}>
+      <DialogContent className="overflow-hidden p-0 shadow-lg">
+        <Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
+          {children}
+        </Command>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
-        <div className="space-y-4">
-          <Select onValueChange={handleStoreChange} value={selectedStoreId || ""}>
-            <SelectTrigger className="w-full text-lg h-12">
-              <SelectValue placeholder="Pilih Toko Anda..." />
-            </SelectTrigger>
-            <SelectContent>
-              {stores.map(store => (
-                <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+const CommandInput = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.Input>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
+>(({ className, ...props }, ref) => (
+  <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
+    <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+    <CommandPrimitive.Input
+      ref={ref}
+      className={cn(
+        "flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  </div>
+))
 
-          <Select onValueChange={handleCrewChange} value={selectedCrewId || ""} disabled={!selectedStoreId}>
-            <SelectTrigger className="w-full text-lg h-12">
-              <SelectValue placeholder="Pilih Nama Anda..." />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredCrewMembers.map(crew => (
-                <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select onValueChange={setSelectedShift} value={selectedShift || ""} disabled={!selectedCrewId}>
-            <SelectTrigger className="w-full text-lg h-12">
-              <SelectValue placeholder="Pilih Shift Anda..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Shift 1">Shift 1</SelectItem>
-              <SelectItem value="Shift 2">Shift 2</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <Alert>
-          <MapPin className="h-4 w-4" />
-          <AlertTitle>Status Lokasi</AlertTitle>
-          {getStatus()}
-        </Alert>
+CommandInput.displayName = CommandPrimitive.Input.displayName
 
-        {selectedCrewId && (
-          <div className="space-y-4 text-center">
-            <canvas ref={canvasRef} className="hidden" />
+const CommandList = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.List>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.List
+    ref={ref}
+    className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden", className)}
+    {...props}
+  />
+))
 
-            {capturedImage ? (
-              <div className="relative group">
-                <img src={capturedImage} alt="Selfie" className="rounded-lg mx-auto max-w-full h-auto" />
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button onClick={handleRetakePhoto} variant="outline" size="sm" disabled={isProcessing}>
-                        <RefreshCcw className="mr-2" />
-                        Ambil Ulang
-                    </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-                  <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} autoPlay muted playsInline />
-                  {hasCameraPermission === false && (
-                     <Alert variant="destructive" className="m-4">
-                       <Camera className="h-4 w-4" />
-                       <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
-                       <AlertDescription>
-                         Izinkan akses kamera di browser Anda untuk melanjutkan.
-                       </AlertDescription>
-                     </Alert>
-                  )}
-                   {hasCameraPermission === null && selectedCrewId && (
-                     <div className="absolute flex flex-col items-center gap-2">
-                        <Loader className="animate-spin" />
-                        <p className="text-sm text-muted-foreground">Memulai kamera...</p>
-                     </div>
-                   )}
-                </div>
-                 <Button onClick={handleTakePhoto} size="lg" disabled={hasCameraPermission !== true || isProcessing}>
-                   <Camera className="mr-2" />
-                   Ambil Foto
-                 </Button>
-              </div>
-            )}
-          </div>
-        )}
+CommandList.displayName = CommandPrimitive.List.displayName
 
-      </CardContent>
-      <CardFooter className="flex justify-between gap-4">
-        <Button className="w-full h-14 text-lg" disabled={!canClockIn || isProcessing} onClick={() => handleClockAction('in')}>
-          {isProcessing && (!canClockOut) ? <Loader className="animate-spin" /> : <LogIn className="mr-2 h-6 w-6" />}
-          Clock In
-        </Button>
-        <Button variant="outline" className="w-full h-14 text-lg" disabled={!canClockOut || isProcessing} onClick={() => handleClockAction('out')}>
-          {isProcessing && canClockOut ? <Loader className="animate-spin" /> : <LogOut className="mr-2 h-6 w-6" />}
-          Clock Out
-        </Button>
-      </CardFooter>
-    </Card>
-  );
+const CommandEmpty = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.Empty>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
+>((props, ref) => (
+  <CommandPrimitive.Empty
+    ref={ref}
+    className="py-6 text-center text-sm"
+    {...props}
+  />
+))
+
+CommandEmpty.displayName = CommandPrimitive.Empty.displayName
+
+const CommandGroup = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.Group>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Group>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.Group
+    ref={ref}
+    className={cn(
+      "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
+      className
+    )}
+    {...props}
+  />
+))
+
+CommandGroup.displayName = CommandPrimitive.Group.displayName
+
+const CommandSeparator = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.Separator>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Separator>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.Separator
+    ref={ref}
+    className={cn("-mx-1 h-px bg-border", className)}
+    {...props}
+  />
+))
+CommandSeparator.displayName = CommandPrimitive.Separator.displayName
+
+const CommandItem = React.forwardRef<
+  React.ElementRef<typeof CommandPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Item>
+>(({ className, ...props }, ref) => (
+  <CommandPrimitive.Item
+    ref={ref}
+    className={cn(
+      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+      className
+    )}
+    {...props}
+  />
+))
+
+CommandItem.displayName = CommandPrimitive.Item.displayName
+
+const CommandShortcut = ({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement>) => {
+  return (
+    <span
+      className={cn(
+        "ml-auto text-xs tracking-widest text-muted-foreground",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+CommandShortcut.displayName = "CommandShortcut"
+
+export {
+  Command,
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+  CommandShortcut,
 }
