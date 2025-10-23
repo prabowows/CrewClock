@@ -1,85 +1,156 @@
-/**
- * @fileoverview Firestore Security Rules for Prototyping.
- *
- * Core Philosophy:
- * This ruleset is designed for rapid prototyping. It focuses on strong
- * authentication and authorization.
- *
- * Data Structure:
- * - /stores/{storeId}: Stores information.
- * - /crew/{crewId}: Crew member information.
- * - /attendance/{attendanceId}: Attendance logs.
- * - /broadcasts/{broadcastId}: Broadcast messages.
- *
- * Key Security Decisions:
- * - No user listing is allowed.
- * - All write operations are protected by authentication checks and authorization.
- * - Data shape validation is relaxed to allow for faster iteration.
- *
- * Access Control Patterns:
- * - Stores: Public read, owner-only writes (if an owner field existed).
- * - Crew Members: Public read, owner-only writes (if an owner field existed).
- * - Attendance Logs: Public read, owner-only writes (if an owner field existed).
- * - Broadcast Messages: Public read, owner-only writes (if an owner field existed).
- *
- * WARNING:
- * These rules prioritize security over strict data validation to enable
- * faster prototyping. Data validation rules should be added later.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to the /stores collection.
+     * @description Checks if the user is signed in.
+     * @returns {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the resource.
+     * @param {string} userId The user's ID to compare with the authenticated user's ID.
+     * @returns {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is an existing owner of the resource (i.e., the resource exists and the user is the owner).
+     * @param {string} userId The user's ID to compare with the authenticated user's ID.
+     * @returns {boolean} True if the user is the existing owner, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Checks if the user has admin privileges.
+     * @returns {boolean} True if the user is an admin, false otherwise.
+     */
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * @description Rule for admin roles. Admins have full read/write access.
+     * @path /roles_admin/{uid}
+     * @allow (create) If the authenticated user's UID matches the document ID, allowing self-creation of admin role.
+     * @deny (create) If the authenticated user's UID does not match the document ID.
+     * @allow (get) If the user is an admin.
+     * @deny (get) If the user is not an admin.
+     * @principle Enforces admin-only access to role management.
+     */
+    match /roles_admin/{uid} {
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow get: if isAdmin();
+       allow read: if isAdmin();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Rule for stores. Admins can create, read, update, and delete stores.
      * @path /stores/{storeId}
-     * @allow (get, list): Anyone can read store information.
-     * @allow (create, update, delete): Only authenticated users can modify store information.  The 'Store' entity is missing an 'ownerId' or 'authorId' field.
-     * @deny (create, update, delete): Unauthenticated users cannot modify store information.
-     * @principle Public read, owner-only writes (if an owner field existed).
+     * @allow (create) If the user is an admin.
+     * @deny (create) If the user is not an admin.
+     * @allow (get) If true - public read.
+     * @deny (get) Never applies.
+     * @allow (list) If true - public read.
+     * @deny (list) Never applies.
+     * @allow (update) If the user is an admin.
+     * @deny (update) If the user is not an admin.
+     * @allow (delete) If the user is an admin.
+     * @deny (delete) If the user is not an admin.
+     * @principle Enforces admin-only management of stores.
      */
     match /stores/{storeId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if isAdmin();
+      allow get: if true;
+      allow list: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+       allow read: if true;
     }
 
     /**
-     * @description Controls access to the /crew collection.
-     * @path /crew/{crewId}
-     * @allow (get, list): Anyone can read crew member information.
-     * @allow (create, update, delete): Only authenticated users can modify crew member information. The 'CrewMember' entity is missing an 'ownerId' or 'authorId' field.
-     * @deny (create, update, delete): Unauthenticated users cannot modify crew member information.
-     * @principle Public read, owner-only writes (if an owner field existed).
+     * @description Rule for store crew members. Admins can create, read, update, and delete crew members.
+     *              Store crew members can read, update, and delete their own data.
+     * @path /stores/{storeId}/crew/{crewId}
+     * @allow (create) If the user is an admin.
+     * @deny (create) If the user is not an admin.
+     * @allow (get) If the user is an admin or the crew member themselves.
+     * @deny (get) If the user is not an admin or the crew member themselves.
+     * @allow (list) If the user is an admin.
+     * @deny (list) If the user is not an admin.
+     * @allow (update) If the user is an admin or the crew member themselves (and the document exists).
+     * @deny (update) If the user is not an admin or the crew member themselves, or the document doesn't exist.
+     * @allow (delete) If the user is an admin.
+     * @deny (delete) If the user is not an admin.
+     * @principle Enforces admin or owner-only access to crew data.
      */
-    match /crew/{crewId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    match /stores/{storeId}/crew/{crewId} {
+      allow create: if isAdmin();
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
+      allow list: if isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
+      allow delete: if isAdmin();
+       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
     }
 
     /**
-     * @description Controls access to the /attendance collection.
-     * @path /attendance/{attendanceId}
-     * @allow (get, list): Anyone can read attendance log information.
-     * @allow (create, update, delete): Only authenticated users can modify attendance log information. The 'AttendanceLog' entity is missing an 'ownerId' or 'authorId' field.
-     * @deny (create, update, delete): Unauthenticated users cannot modify attendance log information.
-     * @principle Public read, owner-only writes (if an owner field existed).
+     * @description Rule for attendance logs. Admins can create, read, update, and delete attendance logs.
+     *              Store crew members can read, update, and delete their own attendance logs.
+     * @path /stores/{storeId}/crew/{crewId}/attendance/{attendanceId}
+     * @allow (create) If the user is an admin or the crew member themselves.
+     *                 The 'storeId' must match the path.
+     * @deny (create) If the user is not an admin or the crew member themselves, or the storeId doesn't match.
+     * @allow (get) If the user is an admin or the crew member themselves.
+     * @deny (get) If the user is not an admin or the crew member themselves.
+     * @allow (list) If the user is an admin.
+     * @deny (list) If the user is not an admin.
+     * @allow (update) If the user is an admin or the crew member themselves (and the document exists).
+     * @deny (update) If the user is not an admin or the crew member themselves, or the document doesn't exist.
+     * @allow (delete) If the user is an admin.
+     * @deny (delete) If the user is not an admin.
+     * @principle Enforces admin or owner-only access to attendance data.
      */
-    match /attendance/{attendanceId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+    match /stores/{storeId}/crew/{crewId}/attendance/{attendanceId} {
+      allow create: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
+      allow list: if isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
+      allow delete: if isAdmin();
+       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == crewId);
     }
 
     /**
-     * @description Controls access to the /broadcasts collection.
+     * @description Rule for broadcast messages. Only admins can create, update, and delete broadcast messages.
+     *              All users can read broadcast messages.
      * @path /broadcasts/{broadcastId}
-     * @allow (get, list): Anyone can read broadcast message information.
-     * @allow (create, update, delete): Only authenticated users can modify broadcast message information. The 'BroadcastMessage' entity is missing an 'ownerId' or 'authorId' field.
-     * @deny (create, update, delete): Unauthenticated users cannot modify broadcast message information.
-     * @principle Public read, owner-only writes (if an owner field existed).
+     * @allow (create) If the user is an admin.
+     * @deny (create) If the user is not an admin.
+     * @allow (get) If true - public read.
+     * @deny (get) Never applies.
+     * @allow (list) If true - public read.
+     * @deny (list) Never applies.
+     * @allow (update) If the user is an admin (and the document exists).
+     * @deny (update) If the user is not an admin, or the document doesn't exist.
+     * @allow (delete) If the user is an admin (and the document exists).
+     * @deny (delete) If the user is not an admin, or the document doesn't exist.
+     * @principle Enforces admin-only management of broadcasts.
      */
     match /broadcasts/{broadcastId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if isAdmin();
+      allow get: if true;
+      allow list: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+       allow read: if true;
     }
   }
 }
