@@ -54,7 +54,7 @@ function DigitalClock() {
     if (!time) {
         return (
           <div className="text-center h-[68px]">
-             <div className="text-5xl font-bold text-primary">- - : - -</div>
+             <div className="text-5xl font-bold text-[#e42841]">- - : - -</div>
              <div className="text-sm text-muted-foreground">Loading...</div>
           </div>
         );
@@ -62,7 +62,7 @@ function DigitalClock() {
 
     return (
         <div className="text-center">
-            <p className="text-5xl font-bold text-primary">
+            <p className="text-5xl font-bold text-[#e42841]">
                 {format(time, 'HH:mm')}
             </p>
             <p className="text-base text-muted-foreground">
@@ -355,11 +355,11 @@ export default function CrewClock() {
                 <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
                   <DialogTrigger asChild>
                       <button
-                          className="w-40 h-40 rounded-full bg-card border-[6px] border-primary flex flex-col items-center justify-center mx-auto transition-transform active:scale-95 disabled:opacity-50"
+                          className="w-40 h-40 rounded-full bg-card border-[6px] border-[#e42841] flex flex-col items-center justify-center mx-auto transition-transform active:scale-95 disabled:opacity-50"
                           disabled={isProcessing}
                       >
-                          <Camera className="w-16 h-16 text-primary" />
-                          <span className="text-lg font-semibold text-primary mt-1">Ambil Foto</span>
+                          <Camera className="w-16 h-16 text-[#e42841]" />
+                          <span className="text-lg font-semibold text-[#e42841] mt-1">Ambil Foto</span>
                       </button>
                   </DialogTrigger>
                   <DialogContent>
@@ -394,7 +394,7 @@ export default function CrewClock() {
                   </DialogContent>
                 </Dialog>
               ) : (
-                <div className="relative group w-40 h-40 mx-auto rounded-full overflow-hidden border-[6px] border-primary">
+                <div className="relative group w-40 h-40 mx-auto rounded-full overflow-hidden border-[6px] border-[#e42841]">
                     <img src={capturedImage} alt="Selfie" className="object-cover w-full h-full" />
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={handleRetakePhoto} className="text-white bg-black/50 p-2 rounded-full">
@@ -465,5 +465,7 @@ export default function CrewClock() {
     </div>
   );
 }
+
+    
 
     
