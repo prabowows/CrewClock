@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, Bell } from "lucide-react";
+import { LogIn, LogOut, MapPin, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, UserCog } from "lucide-react";
 import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
@@ -34,7 +35,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 
 function DigitalClock() {
     const [time, setTime] = useState<Date | null>(null);
@@ -82,6 +82,7 @@ export default function CrewClock() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
   const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -92,6 +93,12 @@ export default function CrewClock() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
   const db = useFirestore();
+  const router = useRouter();
+
+  const handleAdminClick = () => {
+    setIsNavigating(true);
+    router.push("/login");
+  };
 
   const fetchInitialData = async () => {
     try {
@@ -335,13 +342,9 @@ export default function CrewClock() {
         <CardHeader className="p-6 space-y-4">
           <div className="flex justify-between items-center">
              <h1 className="text-2xl font-bold">Attendance</h1>
-             <Button variant="ghost" size="icon">
-                <Bell className="w-6 h-6" />
+             <Button variant="ghost" size="icon" onClick={handleAdminClick} disabled={isNavigating}>
+                {isNavigating ? <Loader className="h-5 w-5 animate-spin" /> : <UserCog className="w-6 h-6" />}
              </Button>
-          </div>
-          <div className="relative">
-            <Input type="search" placeholder="Search..." className="bg-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/70 border-0 rounded-full pl-10" />
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary-foreground/70" />
           </div>
         </CardHeader>
         <CardContent className="p-6 bg-card text-card-foreground rounded-t-3xl space-y-6">
@@ -441,7 +444,9 @@ export default function CrewClock() {
             <MapPin className="h-4 w-4" />
             <AlertTitle className="font-semibold">Status Lokasi</AlertTitle>
             {isLocating ? <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Mendapatkan lokasi Anda...</AlertDescription> : 
-             distance !== null && distance > 1 ? <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km.</AlertDescription> :
+             !assignedStore ? <AlertDescription>Silakan pilih toko untuk memverifikasi lokasi.</AlertDescription> :
+             distance === null ? <AlertDescription className="flex items-center"><Loader className="mr-2 h-4 w-4 animate-spin" />Memverifikasi jarak...</AlertDescription> :
+             distance > 1 ? <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km.</AlertDescription> :
              <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance?.toFixed(2)} km).</AlertDescription>
             }
           </Alert>
@@ -460,5 +465,3 @@ export default function CrewClock() {
     </div>
   );
 }
-
-    
