@@ -1,122 +1,123 @@
-/**
- * @fileoverview Firestore Security Rules for Crew Attendance App.
- *
- * Core Philosophy:
- * This ruleset prioritizes security by default. It enforces that only authenticated users can access the database. 
- * It does not implement any role-based access control or owner-based access control yet.
- * All data validation is skipped to allow for rapid prototyping and iteration.
- *
- * Data Structure:
- * - /stores/{storeId}: Stores information about store locations.
- * - /crew/{crewId}: Stores information about crew members.
- * - /attendance/{attendanceId}: Stores attendance logs for crew members.
- * - /broadcasts/{broadcastId}: Stores broadcast messages to crew members.
- *
- * Key Security Decisions:
- * - Listing of any collections is disallowed.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
      * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
+     * @return {boolean} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Stores collection rules.
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @param {string} userId - The user ID to compare against.
+     * @return {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner of the existing document.
+     * @param {string} userId - The user ID to compare against the resource data.
+     * @return {boolean} True if the user is the owner and the document exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    /**
+     * @description Rules for the /stores collection.
      * @path /stores/{storeId}
-     * @allow (get) Authenticated user can retrieve store data.
-     * @deny (get) Unauthenticated user cannot retrieve store data.
-     * @allow (create) Authenticated user can create store data.
-     * @deny (create) Unauthenticated user cannot create store data.
-     * @allow (update) Authenticated user can update store data.
-     * @deny (update) Unauthenticated user cannot update store data.
-     * @allow (delete) Authenticated user can delete store data.
-     * @deny (delete) Unauthenticated user cannot delete store data.
-     * @deny (list) Listing stores is not allowed.
-     * @principle Requires authentication for all access.
+     * @allow (get) Authenticated user can get a store.
+     * @allow (list) Authenticated user can list stores.
+     * @allow (create) Authenticated user can create a store.
+     * @allow (update) Authenticated user can update a store.
+     * @allow (delete) Authenticated user can delete a store.
+     * @deny (get) Unauthenticated user cannot get a store.
+     * @deny (list) Unauthenticated user cannot list stores.
+     * @deny (create) Unauthenticated user cannot create a store.
+     * @deny (update) Unauthenticated user cannot update a store.
+     * @deny (delete) Unauthenticated user cannot delete a store.
+     * @principle Requires authentication for all operations.
      */
     match /stores/{storeId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     /**
-     * @description Crew members collection rules.
+     * @description Rules for the /crew collection.
      * @path /crew/{crewId}
-     * @allow (get) Authenticated user can retrieve crew member data.
-     * @deny (get) Unauthenticated user cannot retrieve crew member data.
-     * @allow (create) Authenticated user can create crew member data.
-     * @deny (create) Unauthenticated user cannot create crew member data.
-     * @allow (update) Authenticated user can update crew member data.
-     * @deny (update) Unauthenticated user cannot update crew member data.
-     * @allow (delete) Authenticated user can delete crew member data.
-     * @deny (delete) Unauthenticated user cannot delete crew member data.
-     * @deny (list) Listing crew members is not allowed.
-     * @principle Requires authentication for all access.
+     * @allow (get) Authenticated user can get a crew member.
+     * @allow (list) Authenticated user can list crew members.
+     * @allow (create) Authenticated user can create a crew member.
+     * @allow (update) Authenticated user can update a crew member.
+     * @allow (delete) Authenticated user can delete a crew member.
+     * @deny (get) Unauthenticated user cannot get a crew member.
+     * @deny (list) Unauthenticated user cannot list crew members.
+     * @deny (create) Unauthenticated user cannot create a crew member.
+     * @deny (update) Authenticated user cannot update a crew member.
+     * @deny (delete) Authenticated user cannot delete a crew member.
+     * @principle Requires authentication for all operations.
      */
     match /crew/{crewId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     /**
-     * @description Attendance logs collection rules.
+     * @description Rules for the /attendance collection.
      * @path /attendance/{attendanceId}
-     * @allow (get) Authenticated user can retrieve attendance log data.
-     * @deny (get) Unauthenticated user cannot retrieve attendance log data.
-     * @allow (create) Authenticated user can create attendance log data.
-     * @deny (create) Unauthenticated user cannot create attendance log data.
-     * @allow (update) Authenticated user can update attendance log data.
-     * @deny (update) Unauthenticated user cannot update attendance log data.
-     * @allow (delete) Authenticated user can delete attendance log data.
-     * @deny (delete) Unauthenticated user cannot delete attendance log data.
-     * @deny (list) Listing attendance logs is not allowed.
-     * @principle Requires authentication for all access.
+     * @allow (get) Authenticated user can get an attendance log.
+     * @allow (list) Authenticated user can list attendance logs.
+     * @allow (create) Authenticated user can create an attendance log.
+     * @allow (update) Authenticated user can update an attendance log.
+     * @allow (delete) Authenticated user can delete an attendance log.
+     * @deny (get) Unauthenticated user cannot get an attendance log.
+     * @deny (list) Unauthenticated user cannot list attendance logs.
+     * @deny (create) Unauthenticated user cannot create an attendance log.
+     * @deny (update) Authenticated user can update an attendance log.
+     * @deny (delete) Authenticated user cannot delete an attendance log.
+     * @principle Requires authentication for all operations.
      */
     match /attendance/{attendanceId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     /**
-     * @description Broadcast messages collection rules.
+     * @description Rules for the /broadcasts collection.
      * @path /broadcasts/{broadcastId}
-     * @allow (get) Authenticated user can retrieve broadcast message data.
-     * @deny (get) Unauthenticated user cannot retrieve broadcast message data.
-     * @allow (create) Authenticated user can create broadcast message data.
-     * @deny (create) Unauthenticated user cannot create broadcast message data.
-     * @allow (update) Authenticated user can update broadcast message data.
-     * @deny (update) Unauthenticated user cannot update broadcast message data.
-     * @allow (delete) Authenticated user can delete broadcast message data.
-     * @deny (delete) Unauthenticated user cannot delete broadcast message data.
-     * @deny (list) Listing broadcast messages is not allowed.
-     * @principle Requires authentication for all access.
+     * @allow (get) Authenticated user can get a broadcast message.
+     * @allow (list) Authenticated user can list broadcast messages.
+     * @allow (create) Authenticated user can create a broadcast message.
+     * @allow (update) Authenticated user can update a broadcast message.
+     * @allow (delete) Authenticated user can delete a broadcast message.
+     * @deny (get) Unauthenticated user cannot get a broadcast message.
+     * @deny (list) Unauthenticated user cannot list broadcast messages.
+     * @deny (create) Unauthenticated user cannot create a broadcast message.
+     * @deny (update) Authenticated user cannot update a broadcast message.
+     * @deny (delete) Authenticated user cannot delete a broadcast message.
+     * @principle Requires authentication for all operations.
      */
     match /broadcasts/{broadcastId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
   }
 }
