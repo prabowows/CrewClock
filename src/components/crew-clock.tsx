@@ -341,23 +341,25 @@ export default function CrewClock() {
                       {broadcasts.map((message) => (
                           <CarouselItem key={message.id}>
                               <div className="p-1">
-                                  <div className="border rounded-lg p-4 space-y-2">
-                                      <p className="text-sm text-foreground/90">{message.message}</p>
-                                      {message.attachmentURL && (
-                                        <a
-                                          href={message.attachmentURL}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-primary hover:underline text-sm mt-2 inline-flex items-center gap-1"
-                                        >
-                                          <Link2 className="h-3 w-3" />
-                                          Lampiran
-                                        </a>
-                                      )}
-                                      <p className="text-xs text-right text-muted-foreground pt-2">
-                                          {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                                      </p>
-                                  </div>
+                                  <Card>
+                                      <CardContent className="p-4 space-y-2">
+                                          <p className="text-sm text-foreground/90">{message.message}</p>
+                                          {message.attachmentURL && (
+                                            <a
+                                              href={message.attachmentURL}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-primary hover:underline text-sm mt-2 inline-flex items-center gap-1"
+                                            >
+                                              <Link2 className="h-3 w-3" />
+                                              Lampiran
+                                            </a>
+                                          )}
+                                          <p className="text-xs text-right text-muted-foreground pt-2">
+                                              {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                                          </p>
+                                      </CardContent>
+                                  </Card>
                               </div>
                           </CarouselItem>
                       ))}
