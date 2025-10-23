@@ -153,8 +153,6 @@ export default function CrewClock() {
       }
     }, 
     async (serverError) => {
-      // With static data, this error should not be hit from this component
-      // but we keep it for when we switch back to live data.
       const permissionError = new FirestorePermissionError({
           path: `attendance where crewMemberId == ${selectedCrewId}`,
           operation: 'list',
