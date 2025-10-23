@@ -1,11 +1,10 @@
 import Header from "@/components/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookUser, Building2, Users, MessageSquare } from 'lucide-react';
 import AttendanceLog from "@/components/admin/attendance-log";
 import StoreManagement from "@/components/admin/store-management";
 import CrewManagement from "@/components/admin/crew-management";
 import BroadcastMessage from "@/components/admin/broadcast-message";
+import Overview from "@/components/admin/overview";
 
 export default function AdminPage() {
   return (
@@ -30,33 +29,7 @@ export default function AdminPage() {
             </TabsList>
             
             <TabsContent value="overview">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Today's Overview</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                   <Card className="p-4 flex flex-col items-center justify-center text-center">
-                      <Users className="w-8 h-8 mb-2 text-primary" />
-                      <p className="text-2xl font-bold">54</p>
-                      <p className="text-sm text-muted-foreground">Total Karyawan</p>
-                  </Card>
-                   <Card className="p-4 flex flex-col items-center justify-center text-center">
-                      <BookUser className="w-8 h-8 mb-2 text-primary" />
-                      <p className="text-2xl font-bold">42</p>
-                      <p className="text-sm text-muted-foreground">Total Hadir</p>
-                  </Card>
-                   <Card className="p-4 flex flex-col items-center justify-center text-center">
-                      <Users className="w-8 h-8 mb-2 text-yellow-500" />
-                      <p className="text-2xl font-bold">14</p>
-                      <p className="text-sm text-muted-foreground">Total Terlambat</p>
-                  </Card>
-                   <Card className="p-4 flex flex-col items-center justify-center text-center">
-                      <Users className="w-8 h-8 mb-2 text-red-500" />
-                      <p className="text-2xl font-bold">2</p>
-                      <p className="text-sm text-muted-foreground">Total Cuti</p>
-                  </Card>
-                </CardContent>
-              </Card>
+              <Overview />
             </TabsContent>
             
             <TabsContent value="attendance">
