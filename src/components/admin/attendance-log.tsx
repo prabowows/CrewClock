@@ -45,7 +45,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore } from '@/firebase';
 import { collection, onSnapshot, query, where, Timestamp, doc, updateDoc, addDoc, orderBy } from 'firebase/firestore';
-import type { AttendanceLog, Store, CrewMember } from '@/lib/types';
+import type { AttendanceLog as AttendanceLogType, Store, CrewMember as CrewMemberType } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
 import { format } from "date-fns";
@@ -53,13 +53,14 @@ import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { stores as staticStores, crewMembers as staticCrew, attendanceLogs as staticLogs } from '@/../scripts/seed.js';
 
 type AttendanceSummary = {
   crewMemberId: string;
   crewMemberName: string;
   storeName: string;
   clockInCount: number;
-  logs: AttendanceLog[];
+  logs: AttendanceLogType[];
 };
 
 const manualEntrySchema = z.object({
@@ -74,9 +75,9 @@ const manualEntrySchema = z.object({
 
 
 export default function AttendanceLog() {
-  const [logs, setLogs] = useState<AttendanceLog[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [logs, setLogs] = useState<AttendanceLogType[]>(staticLogs.map((l: any) => ({...l, timestamp: new Date(l.timestamp)})));
+  const [stores, setStores] = useState<Store[]>(staticStores);
+  const [crewMembers, setCrewMembers] = useState<CrewMemberType[]>(staticCrew.map((c: any) => ({...c, name: `${c.firstName} ${c.lastName}`})));
   const [selectedStoreId, setSelectedStoreId] = useState<string>('all');
   const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(),
@@ -84,10 +85,10 @@ export default function AttendanceLog() {
   });
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>(date);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLog | null>(null);
+  const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLogType | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<AttendanceSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedLogForNotes, setSelectedLogForNotes] = useState<AttendanceLog | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedLogForNotes, setSelectedLogForNotes] = useState<AttendanceLogType | null>(null);
   const [noteInput, setNoteInput] = useState("");
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [manualEntryStore, setManualEntryStore] = useState<string | undefined>();
@@ -105,96 +106,29 @@ export default function AttendanceLog() {
     },
   });
 
-  useEffect(() => {
-    if (!db) return;
-    const unsubStores = onSnapshot(collection(db, 'stores'), (snapshot) => {
-      const storesData: Store[] = [];
-      snapshot.forEach((doc) => {
-        storesData.push({ id: doc.id, ...doc.data() } as Store);
-      });
-      setStores(storesData);
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'stores',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-
-    const unsubCrew = onSnapshot(collection(db, 'crew'), (snapshot) => {
-        const crewData: CrewMember[] = [];
-        snapshot.forEach((doc) => {
-            crewData.push({ id: doc.id, ...doc.data() } as CrewMember);
-        });
-        setCrewMembers(crewData);
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'crew',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-
-    return () => {
-      unsubStores();
-      unsubCrew();
-    };
-  }, [db]);
-  
- useEffect(() => {
-    if (!db || !date?.from) return;
+  const filteredLogs = useMemo(() => {
+    if (!date?.from) return [];
     
-    setIsLoading(true);
     const fromDate = new Date(date.from);
     const toDate = date.to || date.from;
 
     const startOfDayFrom = new Date(fromDate.setHours(0, 0, 0, 0));
     const endOfDayTo = new Date(toDate.setHours(23, 59, 59, 999));
-
-    const startTimestamp = Timestamp.fromDate(startOfDayFrom);
-    const endTimestamp = Timestamp.fromDate(endOfDayTo);
     
-    let q = query(
-        collection(db, 'attendance'),
-        where('timestamp', '>=', startTimestamp),
-        where('timestamp', '<=', endTimestamp)
-    );
-    if(selectedStoreId !== 'all') {
-      q = query(q, where('storeId', '==', selectedStoreId))
-    }
-    q = query(q, orderBy('timestamp', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const logsData: AttendanceLog[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        logsData.push({
-          id: doc.id,
-          ...data,
-          timestamp: (data.timestamp as Timestamp).toDate(),
-        } as AttendanceLog);
-      });
-
-      setLogs(logsData);
-      setIsLoading(false);
-    }, async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: 'attendance',
-        operation: 'list',
-      });
-      errorEmitter.emit('permission-error', permissionError);
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [db, date, selectedStoreId]);
+    return logs
+      .filter(log => {
+        const logDate = new Date(log.timestamp);
+        const inDateRange = logDate >= startOfDayFrom && logDate <= endOfDayTo;
+        const inStore = selectedStoreId === 'all' || log.storeId === selectedStoreId;
+        return inDateRange && inStore;
+      })
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [logs, date, selectedStoreId]);
 
   const attendanceSummary: AttendanceSummary[] = useMemo(() => {
     const summary: Record<string, AttendanceSummary> = {};
 
-    logs.forEach(log => {
+    filteredLogs.forEach(log => {
         if (!summary[log.crewMemberId]) {
             summary[log.crewMemberId] = {
                 crewMemberId: log.crewMemberId,
@@ -213,7 +147,7 @@ export default function AttendanceLog() {
     Object.values(summary).forEach(s => s.logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()));
     
     return Object.values(summary).sort((a,b) => a.crewMemberName.localeCompare(b.crewMemberName));
-  }, [logs]);
+  }, [filteredLogs]);
 
   const manualEntryFilteredCrew = useMemo(() => {
     if (!manualEntryStore) return [];
@@ -231,7 +165,7 @@ export default function AttendanceLog() {
     setIsPopoverOpen(false);
   }
 
-  const handleOpenNotesDialog = (log: AttendanceLog) => {
+  const handleOpenNotesDialog = (log: AttendanceLogType) => {
     setSelectedLogForNotes(log);
     setNoteInput(log.notes || "");
   };
@@ -243,6 +177,7 @@ export default function AttendanceLog() {
     
     updateDoc(logRef, updatedData)
       .then(() => {
+        setLogs(prevLogs => prevLogs.map(l => l.id === selectedLogForNotes.id ? {...l, notes: noteInput} : l));
         toast({
           title: "Catatan Disimpan",
           description: "Catatan kehadiran telah diperbarui.",
@@ -260,7 +195,6 @@ export default function AttendanceLog() {
   };
 
   async function onManualEntrySubmit(values: z.infer<typeof manualEntrySchema>) {
-    if (!db) return;
     const selectedCrew = crewMembers.find(c => c.id === values.crewMemberId);
     const assignedStore = stores.find(s => s.id === values.storeId);
 
@@ -273,41 +207,33 @@ export default function AttendanceLog() {
     const finalTimestamp = new Date(values.date);
     finalTimestamp.setHours(hours, minutes);
 
-    const docData = {
+    const newLog: AttendanceLogType = {
+        id: `manual-${new Date().getTime()}`,
         crewMemberId: selectedCrew.id,
         crewMemberName: selectedCrew.name,
         storeId: assignedStore.id,
         storeName: assignedStore.name,
-        timestamp: Timestamp.fromDate(finalTimestamp),
+        timestamp: finalTimestamp,
         type: values.type,
         shift: values.shift,
         notes: `Manual Entry. ${values.notes || ''}`.trim(),
         photoURL: '', // No photo for manual entry
     };
+    
+    setLogs(prev => [newLog, ...prev]);
 
-    addDoc(collection(db, 'attendance'), docData)
-      .then(() => {
-        toast({
-            title: "Entri Manual Berhasil",
-            description: `Log absensi untuk ${selectedCrew.name} telah ditambahkan.`,
-        });
-        setIsManualEntryOpen(false);
-        form.reset({
-            storeId: "",
-            crewMemberId: "",
-            time: format(new Date(), "HH:mm"),
-            shift: "",
-            notes: "",
-        });
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'attendance',
-          operation: 'create',
-          requestResourceData: docData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    toast({
+        title: "Entri Manual Berhasil",
+        description: `Log absensi untuk ${selectedCrew.name} telah ditambahkan. (Lokal)`,
+    });
+    setIsManualEntryOpen(false);
+    form.reset({
+        storeId: "",
+        crewMemberId: "",
+        time: format(new Date(), "HH:mm"),
+        shift: "",
+        notes: "",
+    });
   }
 
 
@@ -473,7 +399,7 @@ export default function AttendanceLog() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.length > 0 ? logs.map((log) => (
+                {filteredLogs.length > 0 ? filteredLogs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell>
                        <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForImage(null)}>
