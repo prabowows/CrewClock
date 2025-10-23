@@ -1,0 +1,10 @@
+{
+  "placeholderImages": [
+    {
+      "id": "home-hero",
+      "src": "https://picsum.photos/seed/1/1200/1000",
+      "alt": "A person working diligently at a desk.",
+      "hint": "work productivity"
+    }
+  ]
+}

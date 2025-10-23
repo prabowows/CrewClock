@@ -24,12 +24,38 @@ import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/t
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
-import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, onSnapshot } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+
+function DigitalClock() {
+    const [time, setTime] = useState(new Date());
+
+    useEffect(() => {
+        const timerId = setInterval(() => {
+            setTime(new Date());
+        }, 1000);
+
+        return () => {
+            clearInterval(timerId);
+        };
+    }, []);
+
+    return (
+        <div className="text-center">
+            <p className="text-4xl font-bold text-gray-800 dark:text-gray-200">
+                {format(time, 'HH:mm:ss')}
+            </p>
+            <p className="text-sm text-muted-foreground">
+                {format(time, 'eeee, dd MMMM yyyy')}
+            </p>
+        </div>
+    );
+}
+
 
 export default function CrewClock() {
   const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
@@ -55,6 +81,7 @@ export default function CrewClock() {
   );
 
   const { toast } = useToast();
+  const db = useFirestore();
 
   const fetchInitialData = async () => {
     try {
@@ -327,7 +354,8 @@ export default function CrewClock() {
 
   return (
     <Card className="w-full max-w-lg shadow-2xl rounded-2xl overflow-hidden">
-      <CardHeader className="bg-background/80 backdrop-blur-sm p-6">
+      <CardHeader className="bg-background/80 backdrop-blur-sm p-6 space-y-4">
+        <DigitalClock />
         <CardTitle className="text-3xl font-bold text-center text-primary">CrewClock</CardTitle>
         <CardDescription className="text-center text-base">
           Pilih toko, nama, ambil foto, dan lakukan clock in/out.
