@@ -258,7 +258,7 @@ export default function CrewClock() {
     addDoc(collectionRef, attendanceData)
       .then(() => {
         toast({
-          title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
+          title: `Successfully Clocked ${type === 'in' ? 'Out' : 'In'}!`,
           description: `${selectedCrewMember.name} at ${assignedStore.name}`,
           variant: 'default',
         });
@@ -325,53 +325,47 @@ export default function CrewClock() {
         </CardHeader>
         <CardContent className="p-6 bg-card text-card-foreground rounded-t-3xl space-y-6">
           {broadcasts.length > 0 && (
-            <Card className="bg-primary/10 border-primary/20">
-                <CardHeader className="p-4">
-                    <CardTitle className="text-lg flex items-center">
-                        <Bell className="mr-2 h-5 w-5 text-primary"/>
-                        Papan Pengumuman
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                    <Carousel
-                        plugins={[autoplay.current]}
-                        opts={{ align: "start", loop: true }}
-                        className="w-full"
-                        onMouseEnter={autoplay.current.stop}
-                        onMouseLeave={autoplay.current.reset}
-                    >
-                        <CarouselContent>
-                            {broadcasts.map((message) => (
-                                <CarouselItem key={message.id}>
-                                    <div className="p-1">
-                                        <Card>
-                                            <CardContent className="flex flex-col p-4 space-y-2">
-                                                <p className="text-sm text-foreground/90">{message.message}</p>
-                                                {message.attachmentURL && (
-                                                  <a
-                                                    href={message.attachmentURL}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-primary hover:underline text-sm mt-2 inline-flex items-center gap-1"
-                                                  >
-                                                    <Link2 className="h-3 w-3" />
-                                                    Lampiran
-                                                  </a>
-                                                )}
-                                                <p className="text-xs text-right text-muted-foreground pt-2">
-                                                    {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                                                </p>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
-                                </CarouselItem>
-                            ))}
-                        </CarouselContent>
-                        <CarouselPrevious className="hidden sm:flex -left-4" />
-                        <CarouselNext className="hidden sm:flex -right-4" />
-                    </Carousel>
-                </CardContent>
-            </Card>
+            <div>
+              <div className="flex items-center mb-4">
+                <Bell className="mr-2 h-5 w-5 text-primary"/>
+                <h3 className="text-lg font-semibold text-foreground">Papan Pengumuman</h3>
+              </div>
+              <Carousel
+                  plugins={[autoplay.current]}
+                  opts={{ align: "start", loop: true }}
+                  className="w-full"
+                  onMouseEnter={autoplay.current.stop}
+                  onMouseLeave={autoplay.current.reset}
+              >
+                  <CarouselContent>
+                      {broadcasts.map((message) => (
+                          <CarouselItem key={message.id}>
+                              <div className="p-1">
+                                  <div className="border rounded-lg p-4 space-y-2">
+                                      <p className="text-sm text-foreground/90">{message.message}</p>
+                                      {message.attachmentURL && (
+                                        <a
+                                          href={message.attachmentURL}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline text-sm mt-2 inline-flex items-center gap-1"
+                                        >
+                                          <Link2 className="h-3 w-3" />
+                                          Lampiran
+                                        </a>
+                                      )}
+                                      <p className="text-xs text-right text-muted-foreground pt-2">
+                                          {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                                      </p>
+                                  </div>
+                              </div>
+                          </CarouselItem>
+                      ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="hidden sm:flex -left-4" />
+                  <CarouselNext className="hidden sm:flex -right-4" />
+              </Carousel>
+            </div>
           )}
 
           <div className="space-y-4">
@@ -489,3 +483,5 @@ export default function CrewClock() {
     </div>
   );
 }
+
+    
