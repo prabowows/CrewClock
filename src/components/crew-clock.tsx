@@ -72,7 +72,6 @@ export default function CrewClock() {
   useEffect(() => {
     fetchInitialData();
     
-    // Broadcasts can remain real-time as they are less critical
     const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
     const unsubBroadcasts = onSnapshot(qBroadcasts, (snapshot) => {
         const broadcastsData: BroadcastMessage[] = [];
@@ -87,7 +86,6 @@ export default function CrewClock() {
         setBroadcasts(broadcastsData);
     });
 
-    // Get location once on mount
     setLocationError(null);
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -127,7 +125,6 @@ export default function CrewClock() {
     [selectedCrewMember, stores]
   );
 
-  // Effect to calculate distance when location or store changes
   useEffect(() => {
     if (location && assignedStore) {
       const dist = calculateDistance(
@@ -200,7 +197,6 @@ export default function CrewClock() {
   const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage && !!selectedShift;
   const canClockOut = distance !== null && distance <= 1 && lastAction && lastAction.type === 'in' && !!capturedImage && !!selectedShift;
 
-  // Effect for camera
   useEffect(() => {
     let stream: MediaStream | null = null;
   
@@ -299,16 +295,13 @@ export default function CrewClock() {
       canvas.height = video.videoHeight;
       const context = canvas.getContext('2d');
       if (context) {
-        // Flip the image horizontally for a mirror effect
         context.translate(video.videoWidth, 0);
         context.scale(-1, 1);
         context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-        // Compress the image
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         setCapturedImage(dataUrl);
       }
 
-      // Stop the camera stream
       const stream = video.srcObject as MediaStream;
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -318,7 +311,6 @@ export default function CrewClock() {
 
   const handleRetakePhoto = () => {
     setCapturedImage(null);
-    // The camera permission useEffect will re-run and start the stream again
     const currentId = selectedCrewId;
     setSelectedCrewId(null);
     setTimeout(() => setSelectedCrewId(currentId), 0);
@@ -329,73 +321,64 @@ export default function CrewClock() {
     if (locationError) return <AlertDescription className="flex items-center text-destructive"><WifiOff className="mr-2 h-4 w-4" />Tidak bisa mendapatkan lokasi: Gagal memperbarui posisi.</AlertDescription>;
     if (!selectedCrewId) return <AlertDescription>Silakan pilih toko dan nama Anda untuk memulai.</AlertDescription>;
     if (distance === null) return <AlertDescription>Memverifikasi jarak dari toko...</AlertDescription>;
-    if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km dari toko untuk clock in/out.</AlertDescription>;
+    if (distance > 1) return <AlertDescription className="flex items-center text-destructive"><XCircle className="mr-2 h-4 w-4" />Anda berjarak {distance.toFixed(2)} km. Harap berada dalam jarak 1 km dari toko.</AlertDescription>;
     return <AlertDescription className="flex items-center text-green-600"><CheckCircle2 className="mr-2 h-4 w-4" />Anda dalam jangkauan ({distance.toFixed(2)} km). Siap untuk clock in/out.</AlertDescription>;
   }
 
   return (
-    <Card className="w-full max-w-md shadow-2xl">
-      <CardHeader>
+    <Card className="w-full max-w-lg shadow-2xl rounded-2xl overflow-hidden">
+      <CardHeader className="bg-background/80 backdrop-blur-sm p-6">
         <CardTitle className="text-3xl font-bold text-center text-primary">CrewClock</CardTitle>
-        <CardDescription className="text-center">
-          Pilih toko, nama Anda dan lakukan clock in atau out.
+        <CardDescription className="text-center text-base">
+          Pilih toko, nama, ambil foto, dan lakukan clock in/out.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="p-6 space-y-6">
         {broadcasts.length > 0 && (
-          <Card className="bg-primary/10 border-primary/20">
-              <CardHeader className="p-4">
-                  <CardTitle className="text-lg flex items-center">
-                      <Bell className="mr-2 h-5 w-5 text-primary"/>
-                      Papan Pengumuman
-                  </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                  <Carousel
-                      plugins={[autoplay.current]}
-                      opts={{ align: "start", loop: true }}
-                      className="w-full"
-                      onMouseEnter={autoplay.current.stop}
-                      onMouseLeave={autoplay.current.reset}
-                  >
-                      <CarouselContent>
-                          {broadcasts.map((message) => (
-                              <CarouselItem key={message.id}>
-                                  <div className="p-1">
-                                      <Card>
-                                          <CardContent className="flex flex-col p-4 space-y-2">
-                                              <p className="text-sm text-foreground/90">{message.message}</p>
-                                              {message.attachmentURL && (
-                                                <a
-                                                  href={message.attachmentURL}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-primary hover:underline text-sm mt-2 inline-flex items-center gap-1"
-                                                >
-                                                  <Link2 className="h-3 w-3" />
-                                                  Lampiran
-                                                </a>
-                                              )}
-                                              <p className="text-xs text-right text-muted-foreground pt-2">
-                                                  {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-                                              </p>
-                                          </CardContent>
-                                      </Card>
+          <div className="space-y-3">
+             <h3 className="text-sm font-semibold text-muted-foreground flex items-center"><Bell className="mr-2 h-4 w-4" /> Papan Pengumuman</h3>
+              <Carousel
+                  plugins={[autoplay.current]}
+                  opts={{ align: "start", loop: true }}
+                  className="w-full"
+                  onMouseEnter={autoplay.current.stop}
+                  onMouseLeave={autoplay.current.reset}
+              >
+                  <CarouselContent>
+                      {broadcasts.map((message) => (
+                          <CarouselItem key={message.id}>
+                              <div className="p-1">
+                                  <div className="bg-primary/10 border-primary/20 border rounded-lg p-4">
+                                      <p className="text-sm text-foreground/90">{message.message}</p>
+                                      {message.attachmentURL && (
+                                        <a
+                                          href={message.attachmentURL}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:underline text-xs mt-2 inline-flex items-center gap-1"
+                                        >
+                                          <Link2 className="h-3 w-3" />
+                                          Lampiran
+                                        </a>
+                                      )}
+                                      <p className="text-xs text-right text-muted-foreground pt-2">
+                                          {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                                      </p>
                                   </div>
-                              </CarouselItem>
-                          ))}
-                      </CarouselContent>
-                      <CarouselPrevious className="hidden sm:flex -left-4" />
-                      <CarouselNext className="hidden sm:flex -right-4" />
-                  </Carousel>
-              </CardContent>
-          </Card>
+                              </div>
+                          </CarouselItem>
+                      ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="hidden sm:flex -left-4" />
+                  <CarouselNext className="hidden sm:flex -right-4" />
+              </Carousel>
+          </div>
         )}
 
         <div className="space-y-4">
           <Select onValueChange={handleStoreChange} value={selectedStoreId || ""}>
-            <SelectTrigger className="w-full text-lg h-12">
-              <SelectValue placeholder="Pilih Toko Anda..." />
+            <SelectTrigger className="w-full text-base h-12 rounded-xl">
+              <SelectValue placeholder="1. Pilih Toko Anda" />
             </SelectTrigger>
             <SelectContent>
               {stores.map(store => (
@@ -405,8 +388,8 @@ export default function CrewClock() {
           </Select>
 
           <Select onValueChange={handleCrewChange} value={selectedCrewId || ""} disabled={!selectedStoreId}>
-            <SelectTrigger className="w-full text-lg h-12">
-              <SelectValue placeholder="Pilih Nama Anda..." />
+            <SelectTrigger className="w-full text-base h-12 rounded-xl">
+              <SelectValue placeholder="2. Pilih Nama Anda" />
             </SelectTrigger>
             <SelectContent>
               {filteredCrewMembers.map(crew => (
@@ -416,8 +399,8 @@ export default function CrewClock() {
           </Select>
           
           <Select onValueChange={setSelectedShift} value={selectedShift || ""} disabled={!selectedCrewId}>
-            <SelectTrigger className="w-full text-lg h-12">
-              <SelectValue placeholder="Pilih Shift Anda..." />
+            <SelectTrigger className="w-full text-base h-12 rounded-xl">
+              <SelectValue placeholder="3. Pilih Shift Anda" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Shift 1">Shift 1</SelectItem>
@@ -426,9 +409,9 @@ export default function CrewClock() {
           </Select>
         </div>
         
-        <Alert>
+        <Alert className="rounded-xl">
           <MapPin className="h-4 w-4" />
-          <AlertTitle>Status Lokasi</AlertTitle>
+          <AlertTitle className="font-semibold">Status Lokasi</AlertTitle>
           {getStatus()}
         </Alert>
 
@@ -437,18 +420,18 @@ export default function CrewClock() {
             <canvas ref={canvasRef} className="hidden" />
 
             {capturedImage ? (
-              <div className="relative group">
-                <img src={capturedImage} alt="Selfie" className="rounded-lg mx-auto max-w-full h-auto" />
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button onClick={handleRetakePhoto} variant="outline" size="sm" disabled={isProcessing}>
-                        <RefreshCcw className="mr-2" />
+              <div className="relative group w-full aspect-[4/3] mx-auto">
+                <img src={capturedImage} alt="Selfie" className="rounded-xl object-cover w-full h-full" />
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                    <Button onClick={handleRetakePhoto} variant="secondary" size="sm" disabled={isProcessing}>
+                        <RefreshCcw className="mr-2 h-4 w-4" />
                         Ambil Ulang
                     </Button>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
+                <div className="relative w-full aspect-[4/3] bg-muted rounded-xl overflow-hidden flex items-center justify-center">
                   <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} autoPlay muted playsInline />
                   {hasCameraPermission === false && (
                      <Alert variant="destructive" className="m-4">
@@ -460,15 +443,15 @@ export default function CrewClock() {
                      </Alert>
                   )}
                    {hasCameraPermission === null && selectedCrewId && (
-                     <div className="absolute flex flex-col items-center gap-2">
-                        <Loader className="animate-spin" />
-                        <p className="text-sm text-muted-foreground">Memulai kamera...</p>
+                     <div className="absolute flex flex-col items-center gap-2 text-muted-foreground">
+                        <Loader className="animate-spin h-6 w-6" />
+                        <p className="text-sm">Memulai kamera...</p>
                      </div>
                    )}
                 </div>
-                 <Button onClick={handleTakePhoto} size="lg" disabled={hasCameraPermission !== true || isProcessing}>
+                 <Button onClick={handleTakePhoto} size="lg" className="w-full rounded-xl" disabled={hasCameraPermission !== true || isProcessing}>
                    <Camera className="mr-2" />
-                   Ambil Foto
+                   4. Ambil Foto
                  </Button>
               </div>
             )}
@@ -476,12 +459,12 @@ export default function CrewClock() {
         )}
 
       </CardContent>
-      <CardFooter className="flex justify-between gap-4">
-        <Button className="w-full h-14 text-lg" disabled={!canClockIn || isProcessing} onClick={() => handleClockAction('in')}>
+      <CardFooter className="flex flex-col sm:flex-row justify-between gap-4 p-6 bg-muted/50">
+        <Button className="w-full h-16 text-lg rounded-xl" disabled={!canClockIn || isProcessing} onClick={() => handleClockAction('in')}>
           {isProcessing && (!canClockOut) ? <Loader className="animate-spin" /> : <LogIn className="mr-2 h-6 w-6" />}
           Clock In
         </Button>
-        <Button variant="outline" className="w-full h-14 text-lg" disabled={!canClockOut || isProcessing} onClick={() => handleClockAction('out')}>
+        <Button variant="secondary" className="w-full h-16 text-lg rounded-xl" disabled={!canClockOut || isProcessing} onClick={() => handleClockAction('out')}>
           {isProcessing && canClockOut ? <Loader className="animate-spin" /> : <LogOut className="mr-2 h-6 w-6" />}
           Clock Out
         </Button>
@@ -489,5 +472,3 @@ export default function CrewClock() {
     </Card>
   );
 }
-
-    
