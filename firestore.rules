@@ -1,131 +1,76 @@
 /**
- * @fileoverview Firestore Security Rules for the Crew Management Application.
- *
- * Core Philosophy:
- * This ruleset prioritizes security and data ownership, enforcing strict controls
- * on data access and modification. It assumes an environment where data is
- * generally private unless explicitly made public. In this prototyping phase, we are favoring
- * simple and secure rules over complex schema validation to enable rapid
- * iteration.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a basic security model. All collections (stores, crew, attendance, broadcasts) are publicly readable, but all write operations are completely restricted and require implementation of authorization logic.
  *
  * Data Structure:
  * The Firestore database consists of four top-level collections:
- * - /stores/{storeId}: Information about store locations.
- * - /crew/{crewId}: Information about crew members.
- * - /attendance/{attendanceId}: Attendance logs for crew members.
- * - /broadcasts/{broadcastId}: Broadcast messages for all crew members.
+ * - /stores/{storeId}: Represents store locations.
+ * - /crew/{crewId}: Represents crew members.
+ * - /attendance/{attendanceId}: Represents attendance logs.
+ * - /broadcasts/{broadcastId}: Represents broadcast messages.
  *
  * Key Security Decisions:
- * - No listing of /crew, /attendance, or /broadcasts is allowed to prevent
- *   unauthorized data access. Only `get` requests are permitted if access is
- *   explicitly granted.
- * - All write operations require user authentication (`isSignedIn()`).
- * - Data validation is minimal in this prototyping phase, focusing only on
- *   authorization-critical fields.
- *
- * Access Control Patterns:
- * - `/stores/{storeId}`: Public Read with Owner-Only Writes.  We are assuming a missing `ownerId` field.
- * - `/crew/{crewId}`: Owner-Only access.
- * - `/attendance/{attendanceId}`: Owner-Only access.
- * - `/broadcasts/{broadcastId}`: Owner-Only access.
+ * - Public Read Access: All collections are publicly readable.
+ * - Restricted Writes: All write operations (create, update, delete) are currently denied and require implementation.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to the stores collection. Allows public read access, but restricts writes to store owners.
+     * @description Grants public read access to store documents, but restricts all write operations.
      * @path /stores/{storeId}
      * @allow (get, list): Any user can read store information.
-     * @deny (create, update, delete): No one can write without owner verification (requires 'ownerId' field).
-     * @principle Public read, owner-only writes (if 'ownerId' field existed).
+     * @deny (create, update, delete): No user can create, update, or delete store information without authorization.
+     * @principle Public read, restricted writes.
      */
     match /stores/{storeId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to the crew members collection. Only the owner of a crew member document can read, create, update, or delete it.
+     * @description Grants public read access to crew member documents, but restricts all write operations.
      * @path /crew/{crewId}
-     * @allow (get): If the user is the owner of the crew member document.
-     * @allow (create): If the user is creating their own crew member document (self-creation).
-     * @allow (update, delete): If the user is the owner of the existing crew member document.
-     * @deny (list): Listing crew members is not allowed.
-     * @deny (get, create, update, delete): If the user is not the owner of the crew member document.
-     * @principle Enforces document ownership for all operations.
+     * @allow (get, list): Any user can read crew member information.
+     * @deny (create, update, delete): No user can create, update, or delete crew member information without authorization.
+     * @principle Public read, restricted writes.
      */
     match /crew/{crewId} {
-      allow get: if isOwner(crewId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(crewId);
-      allow update: if isSignedIn() && isExistingOwner(crewId);
-      allow delete: if isSignedIn() && isExistingOwner(crewId);
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to the attendance logs collection. Only the owner of an attendance log document can read, create, update, or delete it.
+     * @description Grants public read access to attendance log documents, but restricts all write operations.
      * @path /attendance/{attendanceId}
-     * @allow (get): If the user is the owner of the attendance log document.
-     * @allow (create): If the user is creating their own attendance log document (self-creation).
-     * @allow (update, delete): If the user is the owner of the existing attendance log document.
-     * @deny (list): Listing attendance logs is not allowed.
-     * @deny (get, create, update, delete): If the user is not the owner of the attendance log document.
-     * @principle Enforces document ownership for all operations.
+     * @allow (get, list): Any user can read attendance log information.
+     * @deny (create, update, delete): No user can create, update, or delete attendance log information without authorization.
+     * @principle Public read, restricted writes.
      */
     match /attendance/{attendanceId} {
-      allow get: if isOwner(attendanceId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(attendanceId);
-      allow update: if isSignedIn() && isExistingOwner(attendanceId);
-      allow delete: if isSignedIn() && isExistingOwner(attendanceId);
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to the broadcast messages collection. Only the owner of a broadcast message document can read, create, update, or delete it.
+     * @description Grants public read access to broadcast message documents, but restricts all write operations.
      * @path /broadcasts/{broadcastId}
-     * @allow (get): If the user is the owner of the broadcast message document.
-     * @allow (create): If the user is creating their own broadcast message document (self-creation).
-     * @allow (update, delete): If the user is the owner of the existing broadcast message document.
-     * @deny (list): Listing broadcast messages is not allowed.
-     * @deny (get, create, update, delete): If the user is not the owner of the broadcast message document.
-     * @principle Enforces document ownership for all operations.
+     * @allow (get, list): Any user can read broadcast message information.
+     * @deny (create, update, delete): No user can create, update, or delete broadcast message information without authorization.
+     * @principle Public read, restricted writes.
      */
     match /broadcasts/{broadcastId} {
-      allow get: if isOwner(broadcastId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(broadcastId);
-      allow update: if isSignedIn() && isExistingOwner(broadcastId);
-      allow delete: if isSignedIn() && isExistingOwner(broadcastId);
-    }
-
-    // --- Helper Functions ---
-
-    /**
-     * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user ID matches the requested user ID.
-     * @param {string} userId The user ID to check against.
-     * @return {bool} True if the user ID matches, false otherwise.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-        /**
-     * @description Checks if the user is the owner of an existing document.
-     *              Combines the ownership check with an existence check (`resource != null`).
-     * @param {string} userId The user ID to check against.
-     * @return {bool} True if the user ID matches and the document exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+      allow get, list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
