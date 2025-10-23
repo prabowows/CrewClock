@@ -346,8 +346,8 @@ export default function CrewClock() {
                     className="w-40 h-40 rounded-full bg-card border-[6px] border-primary flex flex-col items-center justify-center mx-auto transition-transform active:scale-95 disabled:opacity-50"
                     disabled={!selectedCrewId || !selectedShift || isProcessing}
                 >
-                    <Fingerprint className="w-16 h-16 text-primary" />
-                    <span className="text-lg font-semibold text-primary mt-1">Check In</span>
+                    <Camera className="w-16 h-16 text-primary" />
+                    <span className="text-lg font-semibold text-primary mt-1">Ambil Foto</span>
                 </button>
             </DialogTrigger>
             <DialogContent>
@@ -451,5 +451,7 @@ export default function CrewClock() {
     </div>
   );
 }
+
+    
 
     
