@@ -1,3 +1,4 @@
+
 // @ts-check
 // This script is not part of the app runtime, but is a tool to seed the database.
 // To use it, run `node scripts/seed.js` from your terminal.
@@ -31,11 +32,11 @@ const stores = [
 ];
 
 const crewMembers = [
-  { id: 'crew-1', name: 'Alex Johnson', storeId: 'store-2' },
-  { id: 'crew-2', name: 'Maria Garcia', storeId: 'store-1' },
-  { id: 'crew-3', name: 'James Smith', storeId: 'store-3' },
-  { id: 'crew-4', name: 'Patricia Williams', storeId: 'store-1' },
-  { id: 'crew-5', name: 'David Lee', storeId: 'store-2' },
+  { id: 'crew-1', firstName: 'Alex', lastName: 'Johnson', storeId: 'store-2', contactNumber: '123' },
+  { id: 'crew-2', firstName: 'Maria', lastName: 'Garcia', storeId: 'store-1', contactNumber: '123' },
+  { id: 'crew-3', firstName: 'James', lastName: 'Smith', storeId: 'store-3', contactNumber: '123' },
+  { id: 'crew-4', firstName: 'Patricia', lastName: 'Williams', storeId: 'store-1', contactNumber: '123' },
+  { id: 'crew-5', firstName: 'David', lastName: 'Lee', storeId: 'store-2', contactNumber: '123' },
 ];
 
 const attendanceLogs = [
@@ -89,6 +90,16 @@ const broadcastMessages = [
     }
 ];
 
+// Export for use in the app
+module.exports = {
+    stores,
+    crewMembers,
+    attendanceLogs,
+    broadcastMessages,
+    adminUser,
+    firebaseConfig
+};
+
 async function seedDatabase() {
     if (!firebaseConfig.projectId || firebaseConfig.projectId === "your-project-id") {
         console.error("Please paste your Firebase config into scripts/seed.js before running.");
@@ -131,11 +142,12 @@ async function seedDatabase() {
     // Seed crew members
     for (const member of crewMembers) {
         try {
-            const { id, ...data } = member;
-            await setDoc(doc(db, "crew", id), data);
-            console.log(`- Seeded crew member: ${member.name}`);
+            const { id, firstName, lastName, ...data } = member;
+            const crewData = { name: `${firstName} ${lastName}`, ...data };
+            await setDoc(doc(db, "crew", id), crewData);
+            console.log(`- Seeded crew member: ${crewData.name}`);
         } catch (error) {
-            console.error(`Error seeding crew member ${member.name}:`, error);
+            console.error(`Error seeding crew member ${member.firstName}:`, error);
         }
     }
 
@@ -171,4 +183,7 @@ async function seedDatabase() {
     process.exit(0);
 }
 
-seedDatabase();
+// This allows the script to be run directly from the command line
+if (require.main === module) {
+  seedDatabase();
+}
