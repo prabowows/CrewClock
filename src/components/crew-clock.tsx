@@ -26,15 +26,13 @@ import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
-import { useFirestore } from "@/firebase";
-import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
+import { stores as staticStores, crewMembers as staticCrew, attendanceLogs as staticLogs, broadcastMessages as staticBroadcasts } from '../../scripts/seed.js';
+
 
 export default function CrewClock() {
-  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
+  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>(staticCrew.map(c => ({...c, name: `${c.firstName} ${c.lastName}`})));
+  const [stores, setStores] = useState<Store[]>(staticStores);
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>(staticBroadcasts);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<string | null>(null);
@@ -46,7 +44,6 @@ export default function CrewClock() {
   const [lastAction, setLastAction] = useState<AttendanceLog | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const db = useFirestore();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -58,50 +55,6 @@ export default function CrewClock() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!db) return;
-    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
-      setAllCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: 'crew',
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-
-    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
-      setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'stores',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-
-    const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
-    const unsubBroadcasts = onSnapshot(qBroadcasts, (snapshot) => {
-        const broadcastsData: BroadcastMessage[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            broadcastsData.push({
-                id: doc.id,
-                ...data,
-                timestamp: (data.timestamp as Timestamp).toDate(),
-            } as BroadcastMessage);
-        });
-        setBroadcasts(broadcastsData);
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: 'broadcasts',
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-
     // Get location once on mount
     setLocationError(null);
     if (navigator.geolocation) {
@@ -121,13 +74,7 @@ export default function CrewClock() {
       setLocationError("Geolocation is not supported by this browser.");
       setIsLocating(false);
     }
-
-    return () => {
-      unsubCrew();
-      unsubStores();
-      unsubBroadcasts();
-    };
-  }, [db]);
+  }, []);
   
   const filteredCrewMembers = useMemo(() => {
     if (!selectedStoreId) return [];
@@ -174,43 +121,24 @@ export default function CrewClock() {
   }
 
   useEffect(() => {
-    if (!selectedCrewId || !db) {
+    if (!selectedCrewId) {
       setLastAction(null);
       setCapturedImage(null);
       setSelectedShift(null);
       return;
     }
   
-    const q = query(
-      collection(db, 'attendance'),
-      where('crewMemberId', '==', selectedCrewId),
-      orderBy('timestamp', 'desc'),
-      limit(1)
-    );
-  
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        const data = doc.data();
-        setLastAction({
-          id: doc.id,
-          ...data,
-          timestamp: (data.timestamp as Timestamp).toDate(),
-        } as AttendanceLog);
-      } else {
+    const lastLog = staticLogs
+        .filter(log => log.crewMemberId === selectedCrewId)
+        .sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+
+    if (lastLog) {
+        setLastAction(lastLog);
+    } else {
         setLastAction(null);
-      }
-    }, 
-    async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-          path: `attendance where crewMemberId == ${selectedCrewId}`,
-          operation: 'list',
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
-  
-    return () => unsubscribe();
-  }, [selectedCrewId, db]);
+    }
+
+  }, [selectedCrewId]);
 
 
   const canClockIn = distance !== null && distance <= 1 && (!lastAction || lastAction.type === 'out') && !!capturedImage && !!selectedShift;
@@ -265,46 +193,22 @@ export default function CrewClock() {
   }, [selectedCrewId, toast]);
 
   const handleClockAction = async (type: 'in' | 'out') => {
-    if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift || !db) return;
+    if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift) return;
   
     setIsProcessing(true);
-  
-    const newLogData = {
-        crewMemberId: selectedCrewMember.id,
-        crewMemberName: selectedCrewMember.name,
-        storeId: assignedStore.id,
-        storeName: assignedStore.name,
-        timestamp: new Date(),
-        type,
-        photoURL: capturedImage,
-        shift: selectedShift,
-    };
 
-    addDoc(collection(db, 'attendance'), newLogData)
-    .then((docRef) => {
-        setLastAction({ id: docRef.id, ...newLogData });
-        toast({
-            title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
-            description: `${selectedCrewMember.name} at ${assignedStore.name}`,
-            variant: 'default',
-        });
-        // Reset to initial state
-        setCapturedImage(null);
-        setSelectedCrewId(null);
-        setSelectedShift(null);
-        setSelectedStoreId(null);
-    })
-    .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'attendance',
-          operation: 'create',
-          requestResourceData: newLogData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    })
-    .finally(() => {
-        setIsProcessing(false);
+    toast({
+        title: "Fungsi Dinonaktifkan",
+        description: `Clock-${type} dinonaktifkan saat menggunakan data statis.`,
+        variant: "destructive"
     });
+    
+    // Reset to initial state
+    setCapturedImage(null);
+    setSelectedCrewId(null);
+    setSelectedShift(null);
+    setSelectedStoreId(null);
+    setIsProcessing(false);
   };
 
 
@@ -506,3 +410,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    

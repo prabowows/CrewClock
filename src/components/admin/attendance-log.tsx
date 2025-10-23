@@ -44,16 +44,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore } from '@/firebase';
-import { collection, onSnapshot, query, where, Timestamp, doc, updateDoc, addDoc, orderBy } from 'firebase/firestore';
 import type { AttendanceLog as AttendanceLogType, Store, CrewMember as CrewMemberType } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Camera, Users, Loader, Edit, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { stores as staticStores, crewMembers as staticCrew, attendanceLogs as staticLogs } from '../../../scripts/seed.js';
 
 type AttendanceSummary = {
   crewMemberId: string;
@@ -75,9 +72,9 @@ const manualEntrySchema = z.object({
 
 
 export default function AttendanceLog() {
-  const [logs, setLogs] = useState<AttendanceLogType[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [crewMembers, setCrewMembers] = useState<CrewMemberType[]>([]);
+  const [logs, setLogs] = useState<AttendanceLogType[]>(staticLogs);
+  const [stores, setStores] = useState<Store[]>(staticStores);
+  const [crewMembers, setCrewMembers] = useState<CrewMemberType[]>(staticCrew);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('all');
   const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(),
@@ -87,61 +84,12 @@ export default function AttendanceLog() {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLogType | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<AttendanceSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedLogForNotes, setSelectedLogForNotes] = useState<AttendanceLogType | null>(null);
   const [noteInput, setNoteInput] = useState("");
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [manualEntryStore, setManualEntryStore] = useState<string | undefined>();
   const { toast } = useToast();
-  const db = useFirestore();
-
-  useEffect(() => {
-    if (!db) return;
-    setIsLoading(true);
-
-    const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
-    
-    const unsubLogs = onSnapshot(q, (snapshot) => {
-        setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as AttendanceLogType)));
-        setIsLoading(false);
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'attendance',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        setIsLoading(false);
-    });
-
-    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
-        setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'stores',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-    
-    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
-        setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMemberType)));
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'crew',
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-
-    return () => {
-        unsubLogs();
-        unsubStores();
-        unsubCrew();
-    }
-  }, [db]);
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
@@ -199,7 +147,7 @@ export default function AttendanceLog() {
 
   const manualEntryFilteredCrew = useMemo(() => {
     if (!manualEntryStore) return [];
-    return crewMembers.filter(c => c.storeId === manualEntryStore);
+    return crewMembers.map(c => ({...c, name: `${c.firstName} ${c.lastName}`})).filter(c => c.storeId === manualEntryStore);
   }, [manualEntryStore, crewMembers]);
 
 
@@ -219,76 +167,22 @@ export default function AttendanceLog() {
   };
   
   const handleSaveNote = async () => {
-    if (!selectedLogForNotes || !db) return;
-    const logRef = doc(db, 'attendance', selectedLogForNotes.id);
-    const updatedData = { notes: noteInput };
-    
-    updateDoc(logRef, updatedData)
-      .then(() => {
-        toast({
-          title: "Catatan Disimpan",
-          description: "Catatan kehadiran telah diperbarui.",
-        });
-        setSelectedLogForNotes(null);
-      })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: logRef.path,
-          operation: 'update',
-          requestResourceData: updatedData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    if (!selectedLogForNotes) return;
+    toast({
+        title: "Fungsi Dinonaktifkan",
+        description: "Menyimpan catatan dinonaktifkan saat menggunakan data statis.",
+        variant: "destructive"
+    });
+    setSelectedLogForNotes(null);
   };
 
   async function onManualEntrySubmit(values: z.infer<typeof manualEntrySchema>) {
-    if (!db) return;
-    const selectedCrew = crewMembers.find(c => c.id === values.crewMemberId);
-    const assignedStore = stores.find(s => s.id === values.storeId);
-
-    if (!selectedCrew || !assignedStore) {
-        toast({ variant: "destructive", title: "Error", description: "Invalid crew or store." });
-        return;
-    }
-
-    const [hours, minutes] = values.time.split(':').map(Number);
-    const finalTimestamp = new Date(values.date);
-    finalTimestamp.setHours(hours, minutes);
-
-    const newLog: Omit<AttendanceLogType, 'id'> = {
-        crewMemberId: selectedCrew.id,
-        crewMemberName: selectedCrew.name,
-        storeId: assignedStore.id,
-        storeName: assignedStore.name,
-        timestamp: finalTimestamp,
-        type: values.type,
-        shift: values.shift,
-        notes: `Manual Entry. ${values.notes || ''}`.trim(),
-        photoURL: '', // No photo for manual entry
-    };
-    
-    addDoc(collection(db, 'attendance'), newLog)
-    .then(() => {
-        toast({
-            title: "Entri Manual Berhasil",
-            description: `Log absensi untuk ${selectedCrew.name} telah ditambahkan.`,
-        });
-        setIsManualEntryOpen(false);
-        form.reset({
-            storeId: "",
-            crewMemberId: "",
-            time: format(new Date(), "HH:mm"),
-            shift: "",
-            notes: "",
-        });
-    }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'attendance',
-          operation: 'create',
-          requestResourceData: newLog,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    toast({
+        title: "Fungsi Dinonaktifkan",
+        description: "Entri manual dinonaktifkan saat menggunakan data statis.",
+        variant: "destructive"
     });
+    setIsManualEntryOpen(false);
   }
 
 
@@ -502,7 +396,7 @@ export default function AttendanceLog() {
                            {log.notes ? (
                                <p className="truncate max-w-[150px] hover:underline">{log.notes}</p>
                            ) : (
-                               <Button variant="ghost" size="icon" className="h-8 w-8">
+                               <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
                                    <Edit className="h-4 w-4 text-muted-foreground" />
                                </Button>
                            )}
@@ -553,6 +447,7 @@ export default function AttendanceLog() {
         <DialogTrigger asChild>
             <Button
                 className="fixed bottom-16 right-8 h-16 w-16 rounded-full shadow-lg"
+                disabled
             >
                 <Plus className="h-8 w-8" />
                 <span className="sr-only">Add Manual Entry</span>
@@ -738,3 +633,5 @@ export default function AttendanceLog() {
     </div>
   );
 }
+
+    

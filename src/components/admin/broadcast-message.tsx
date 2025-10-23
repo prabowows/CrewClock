@@ -26,11 +26,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from '../ui/card';
-import { useFirestore } from '@/firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-
+import { broadcastMessages as staticBroadcasts } from '../../../scripts/seed.js';
 
 const broadcastSchema = z.object({
   message: z.string().min(10, "Message must be at least 10 characters.").max(500, "Message cannot exceed 500 characters."),
@@ -38,34 +34,8 @@ const broadcastSchema = z.object({
 });
 
 export default function BroadcastMessage() {
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessageType[]>([]);
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessageType[]>(staticBroadcasts);
   const { toast } = useToast();
-  const db = useFirestore();
-
-  useEffect(() => {
-    if (!db) return;
-    const q = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const broadcastsData: BroadcastMessageType[] = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            broadcastsData.push({
-                id: doc.id,
-                ...data,
-                timestamp: (data.timestamp as Timestamp).toDate(),
-            } as BroadcastMessageType);
-        });
-        setBroadcasts(broadcastsData);
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: 'broadcasts',
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-    return () => unsubscribe();
-  }, [db]);
 
   const form = useForm<z.infer<typeof broadcastSchema>>({
     resolver: zodResolver(broadcastSchema),
@@ -76,49 +46,20 @@ export default function BroadcastMessage() {
   });
 
   async function onSubmit(values: z.infer<typeof broadcastSchema>) {
-    if (!db) return;
-    const newBroadcast = {
-        message: values.message,
-        timestamp: new Date(),
-        attachmentURL: values.attachmentURL || null,
-    };
-    
-    addDoc(collection(db, 'broadcasts'), newBroadcast)
-        .then(() => {
-            toast({
-                title: "Broadcast Sent!",
-                description: "Your message has been sent to all crew members.",
-            });
-            form.reset();
-        })
-        .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: 'broadcasts',
-                operation: 'create',
-                requestResourceData: newBroadcast,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+    toast({
+        title: "Fungsi Dinonaktifkan",
+        description: "Mengirim pesan dinonaktifkan saat menggunakan data statis.",
+        variant: "destructive"
+    });
+    form.reset();
   }
 
   const handleDelete = async (id: string) => {
-    if (!db) return;
-    const broadcastRef = doc(db, 'broadcasts', id);
-    deleteDoc(broadcastRef)
-        .then(() => {
-            toast({
-                title: "Broadcast Deleted",
-                description: "The message has been removed from the history.",
-                variant: "destructive"
-            });
-        })
-        .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: broadcastRef.path,
-                operation: 'delete',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+    toast({
+        title: "Fungsi Dinonaktifkan",
+        description: "Menghapus pesan dinonaktifkan saat menggunakan data statis.",
+        variant: "destructive"
+    });
   };
 
   return (
@@ -237,3 +178,5 @@ export default function BroadcastMessage() {
     </div>
   );
 }
+
+    

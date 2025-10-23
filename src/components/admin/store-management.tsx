@@ -23,10 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useFirestore } from '@/firebase';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { stores as staticStores } from '../../../scripts/seed.js';
 
 const storeSchema = z.object({
   name: z.string().min(2, "Store name must be at least 2 characters."),
@@ -35,25 +32,9 @@ const storeSchema = z.object({
 });
 
 export default function StoreManagement() {
-  const [stores, setStores] = useState<Store[]>([]);
+  const [stores, setStores] = useState<Store[]>(staticStores);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const { toast } = useToast();
-  const db = useFirestore();
-
-  useEffect(() => {
-    if (!db) return;
-    const unsubscribe = onSnapshot(collection(db, "stores"), (snapshot) => {
-        setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
-    },
-    async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: 'stores',
-            operation: 'list',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-    return () => unsubscribe();
-  }, [db]);
 
   const form = useForm<z.infer<typeof storeSchema>>({
     resolver: zodResolver(storeSchema),
@@ -81,58 +62,21 @@ export default function StoreManagement() {
   }, [editingStore, form]);
 
   async function onSubmit(values: z.infer<typeof storeSchema>) {
-    if (!db) return;
-    if (editingStore) {
-      const storeRef = doc(db, 'stores', editingStore.id);
-      updateDoc(storeRef, values)
-        .then(() => {
-            toast({ title: "Store Updated", description: `${values.name} has been successfully updated.` });
-            setEditingStore(null);
-        })
-        .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: storeRef.path,
-              operation: 'update',
-              requestResourceData: values
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-
-    } else {
-      addDoc(collection(db, 'stores'), values)
-        .then(() => {
-            toast({ title: "Store Added", description: `${values.name} has been successfully added.` });
-        })
-        .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: 'stores',
-              operation: 'create',
-              requestResourceData: values
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-    }
+    toast({
+        title: "Fungsi Dinonaktifkan",
+        description: "Menambah/mengubah toko dinonaktifkan saat menggunakan data statis.",
+        variant: "destructive"
+    });
+    setEditingStore(null);
     form.reset({ name: "", latitude: "" as any, longitude: "" as any });
   }
 
   const handleDelete = async (storeId: string) => {
-    if (!db) return;
-    const storeRef = doc(db, 'stores', storeId);
-    deleteDoc(storeRef)
-        .then(() => {
-            toast({
-                title: "Store Deleted",
-                description: "The store has been successfully deleted.",
-                variant: "destructive"
-            });
-        })
-        .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: storeRef.path,
-              operation: 'delete',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+    toast({
+        title: "Fungsi Dinonaktifkan",
+        description: "Menghapus toko dinonaktifkan saat menggunakan data statis.",
+        variant: "destructive"
+    });
   };
 
   const handleEdit = (store: Store) => {
@@ -256,3 +200,5 @@ export default function StoreManagement() {
     </div>
   );
 }
+
+    
