@@ -51,7 +51,7 @@ import { format } from "date-fns";
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, orderBy, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 
 
 type AttendanceSummary = {
