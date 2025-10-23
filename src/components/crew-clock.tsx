@@ -19,15 +19,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogIn, LogOut, MapPin, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, UserCog } from "lucide-react";
+import { LogIn, LogOut, MapPin, CheckCircle2, XCircle, Loader, Camera, RefreshCcw, UserCog, Bell, Link2 } from "lucide-react";
 import type { CrewMember, Store, AttendanceLog, BroadcastMessage } from "@/lib/types";
 import { calculateDistance } from "@/lib/location";
 import { useToast } from "@/hooks/use-toast";
-import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import {
     Dialog,
     DialogContent,
@@ -35,46 +35,13 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-
-function DigitalClock() {
-    const [time, setTime] = useState<Date | null>(null);
-
-    useEffect(() => {
-        // Set time only on the client
-        setTime(new Date());
-        const timerId = setInterval(() => {
-            setTime(new Date());
-        }, 1000);
-
-        return () => {
-            clearInterval(timerId);
-        };
-    }, []);
-
-    if (!time) {
-        return (
-          <div className="text-center h-[68px]">
-             <div className="text-5xl font-bold text-[#e42841]">- - : - -</div>
-             <div className="text-sm text-muted-foreground">Loading...</div>
-          </div>
-        );
-    }
-
-    return (
-        <div className="text-center">
-            <p className="text-5xl font-bold text-[#e42841]">
-                {format(time, 'HH:mm')}
-            </p>
-            <p className="text-base text-muted-foreground">
-                {format(time, 'eeee, dd MMMM yyyy')}
-            </p>
-        </div>
-    );
-}
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 
 export default function CrewClock() {
   const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<string | null>(null);
@@ -95,6 +62,10 @@ export default function CrewClock() {
   const db = useFirestore();
   const router = useRouter();
 
+  const autoplay = useRef(
+    Autoplay({ delay: 5000, stopOnInteraction: true })
+  );
+
   const handleAdminClick = () => {
     setIsNavigating(true);
     router.push("/login");
@@ -107,6 +78,11 @@ export default function CrewClock() {
       
       const storeSnapshot = await getDocs(collection(db, "stores"));
       setStores(storeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+
+      const broadcastQuery = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
+      const broadcastSnapshot = await getDocs(broadcastQuery);
+      setBroadcasts(broadcastSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as BroadcastMessage)));
+
     } catch(error) {
       console.error("Failed to fetch initial data", error);
       toast({ title: "Error", description: "Could not fetch store or crew data.", variant: "destructive" });
@@ -348,7 +324,55 @@ export default function CrewClock() {
           </div>
         </CardHeader>
         <CardContent className="p-6 bg-card text-card-foreground rounded-t-3xl space-y-6">
-          <DigitalClock />
+          {broadcasts.length > 0 && (
+            <Card className="bg-primary/10 border-primary/20">
+                <CardHeader className="p-4">
+                    <CardTitle className="text-lg flex items-center">
+                        <Bell className="mr-2 h-5 w-5 text-primary"/>
+                        Papan Pengumuman
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                    <Carousel
+                        plugins={[autoplay.current]}
+                        opts={{ align: "start", loop: true }}
+                        className="w-full"
+                        onMouseEnter={autoplay.current.stop}
+                        onMouseLeave={autoplay.current.reset}
+                    >
+                        <CarouselContent>
+                            {broadcasts.map((message) => (
+                                <CarouselItem key={message.id}>
+                                    <div className="p-1">
+                                        <Card>
+                                            <CardContent className="flex flex-col p-4 space-y-2">
+                                                <p className="text-sm text-foreground/90">{message.message}</p>
+                                                {message.attachmentURL && (
+                                                  <a
+                                                    href={message.attachmentURL}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary hover:underline text-sm mt-2 inline-flex items-center gap-1"
+                                                  >
+                                                    <Link2 className="h-3 w-3" />
+                                                    Lampiran
+                                                  </a>
+                                                )}
+                                                <p className="text-xs text-right text-muted-foreground pt-2">
+                                                    {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+                                                </p>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                </CarouselItem>
+                            ))}
+                        </CarouselContent>
+                        <CarouselPrevious className="hidden sm:flex -left-4" />
+                        <CarouselNext className="hidden sm:flex -right-4" />
+                    </Carousel>
+                </CardContent>
+            </Card>
+          )}
 
           <div className="space-y-4">
               {!capturedImage ? (
@@ -465,9 +489,3 @@ export default function CrewClock() {
     </div>
   );
 }
-
-    
-
-    
-
-    
