@@ -314,7 +314,7 @@ export default function CrewClock() {
 
   return (
     <div className="w-full max-w-sm mx-auto">
-      <Card className="w-full shadow-2xl rounded-2xl overflow-hidden bg-[#e42841] text-primary-foreground">
+      <Card className="w-full shadow-2xl rounded-2xl overflow-hidden bg-primary text-primary-foreground">
         <CardHeader className="p-6 space-y-4">
           <div className="flex justify-between items-center">
              <h1 className="text-2xl font-bold">Attendance</h1>
@@ -341,7 +341,7 @@ export default function CrewClock() {
                       {broadcasts.map((message) => (
                           <CarouselItem key={message.id}>
                               <div className="p-1">
-                                  <Card className="border-l-4 border-l-[#e42841]">
+                                  <Card className="border-l-4 border-l-primary">
                                       <CardContent className="p-4 space-y-2">
                                           <p className="text-sm text-foreground/90">{message.message}</p>
                                           {message.attachmentURL && (
@@ -375,10 +375,10 @@ export default function CrewClock() {
                 <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
                   <DialogTrigger asChild>
                       <button
-                          className="w-40 h-40 rounded-full bg-card border-[6px] border-[#e42841] flex flex-col items-center justify-center mx-auto transition-transform active:scale-95"
+                          className="w-40 h-40 rounded-full bg-card border-[6px] border-primary flex flex-col items-center justify-center mx-auto transition-transform active:scale-95"
                       >
-                          <Camera className="w-16 h-16 text-[#e42841]" />
-                          <span className="text-lg font-semibold text-[#e42841] mt-1">Ambil Foto</span>
+                          <Camera className="w-16 h-16 text-primary" />
+                          <span className="text-lg font-semibold text-primary mt-1">Ambil Foto</span>
                       </button>
                   </DialogTrigger>
                   <DialogContent>
@@ -413,7 +413,7 @@ export default function CrewClock() {
                   </DialogContent>
                 </Dialog>
               ) : (
-                <div className="relative group w-40 h-40 mx-auto rounded-full overflow-hidden border-[6px] border-[#e42841]">
+                <div className="relative group w-40 h-40 mx-auto rounded-full overflow-hidden border-[6px] border-primary">
                     <img src={capturedImage} alt="Selfie" className="object-cover w-full h-full" />
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={handleRetakePhoto} className="text-white bg-black/50 p-2 rounded-full">
@@ -471,7 +471,7 @@ export default function CrewClock() {
           </Alert>
 
           <Button 
-            className="w-full h-14 text-lg rounded-xl bg-[#e42841] hover:bg-[#e42841]/90" 
+            className="w-full h-14 text-lg rounded-xl" 
             disabled={!canClock || isProcessing} 
             onClick={() => handleClockAction(nextActionType)}
           >
