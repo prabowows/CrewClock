@@ -686,7 +686,7 @@ export default function AttendanceLog() {
                                     <Textarea placeholder="e.g., Lupa clock in pagi ini" {...field} />
                                 </FormControl>
                                 <FormMessage />
-                            </FormItem>
+                            </Form-Item>
                         )}
                     />
                     <DialogFooter>
@@ -700,5 +700,3 @@ export default function AttendanceLog() {
     </div>
   );
 }
-
-    
