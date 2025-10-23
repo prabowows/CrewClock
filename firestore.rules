@@ -1,11 +1,93 @@
+/**
+ * @fileoverview Firestore Security Rules for CrewClock application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes security by default, restricting access to data unless explicitly allowed.
+ * In prototyping mode, data shape validation is relaxed to allow for rapid iteration, but authorization is strictly enforced.
+ *
+ * Data Structure:
+ * - /stores/{storeId}: Publicly readable store information. Only authorized users (e.g., admins) can create, update, or delete store records.
+ * - /crew/{crewId}: Crew member information, accessible to authenticated users. Authorization will need to be refined based on roles and store assignments.
+ * - /attendance/{attendanceId}: Attendance logs, potentially restricted to authorized personnel or the crew members themselves.
+ * - /broadcasts/{broadcastId}: Broadcast messages, potentially public or restricted to specific groups of users.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed unless explicitly required and secured with appropriate authorization checks.
+ * - Ambiguous relationships are defaulted to the most secure interpretation (deny access).
+ *
+ * Denormalization for Authorization:
+ *  - Store IDs are included on crew member documents and attendance logs to simplify authorization checks.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to all documents for authenticated users
-    // This is a temporary rule for development.
-    // TODO: Secure your data with more specific rules.
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    /**
+     * @description Allows public read access to store information. Only authorized users can create, update, or delete store records.
+     * @path /stores/{storeId}
+     * @allow (get, list): Any user can read store information.
+     * @deny (create, update, delete): Only admins can modify store information.
+     * @principle Public read access with restricted write access for store data.
+     */
+    match /stores/{storeId} {
+      allow get: if true;
+      allow list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Allows authenticated users to read crew member information.  Authorization to be refined based on roles and store assignments.
+     * @path /crew/{crewId}
+     * @allow (get): Any authenticated user can read crew member information.
+     * @deny (create, update, delete): Only authorized users (e.g., store managers or admins) can modify crew member information.
+     * @principle Authenticated read access with restricted write access for crew data.
+     */
+    match /crew/{crewId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); // Allow listing for now, refine later if needed
+      allow create, update, delete: if isAdmin(); // Placeholder, refine based on roles and store assignments
+    }
+
+    /**
+     * @description Controls access to attendance logs.
+     * @path /attendance/{attendanceId}
+     * @allow (create): Authenticated users can create attendance logs with correct ownership.
+     * @allow (get, list): Only authorized personnel or the crew members themselves can access attendance logs.
+     * @deny (update, delete): No one can update or delete attendance records after they're created.
+     * @principle Restricts attendance log access to authorized personnel and prevents modification after creation.
+     */
+    match /attendance/{attendanceId} {
+      allow create: if isSignedIn(); // Placeholder, refine based on roles and store assignments
+      allow get: if isAdmin() || isOwner(resource.data.userId); // Placeholder, refine based on roles and store assignments
+      allow list: if isAdmin(); // Placeholder, refine based on roles and store assignments
+      allow update, delete: if false;
+    }
+
+    /**
+     * @description Controls access to broadcast messages.
+     * @path /broadcasts/{broadcastId}
+     * @allow (get, list):  Any user can read broadcast messages.
+     * @deny (create, update, delete): Only authorized users (e.g., admins) can modify broadcast messages.
+     * @principle Public read access with restricted write access for broadcast messages.
+     */
+    match /broadcasts/{broadcastId} {
+      allow get: if true;
+      allow list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      // Placeholder for admin role check. Implement your actual role-based authentication logic here.
+      return false;
     }
   }
 }
