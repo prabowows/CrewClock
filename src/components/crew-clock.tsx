@@ -338,7 +338,7 @@ export default function CrewClock() {
 
   return (
     <div className="w-full max-w-sm mx-auto">
-      <Card className="w-full shadow-2xl rounded-2xl overflow-hidden bg-primary text-primary-foreground">
+      <Card className="w-full shadow-2xl rounded-2xl overflow-hidden bg-[#e42841] text-primary-foreground">
         <CardHeader className="p-6 space-y-4">
           <div className="flex justify-between items-center">
              <h1 className="text-2xl font-bold">Attendance</h1>
@@ -465,3 +465,5 @@ export default function CrewClock() {
     </div>
   );
 }
+
+    
