@@ -32,20 +32,35 @@ import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
 function DigitalClock() {
-    const [time, setTime] = useState(new Date());
+    const [time, setTime] = useState<Date | null>(null);
 
     useEffect(() => {
+        // Set initial time on the client
+        setTime(new Date());
+
+        // Update time every second
         const timerId = setInterval(() => {
             setTime(new Date());
         }, 1000);
 
+        // Cleanup interval on component unmount
         return () => {
             clearInterval(timerId);
         };
-    }, []);
+    }, []); // Empty dependency array ensures this runs only on the client
+
+    if (!time) {
+        // Render a placeholder or nothing on the server and during initial client render
+        return (
+          <div className="text-center h-[68px]">
+             <div className="text-4xl font-bold text-gray-800 dark:text-gray-200">- - : - - : - -</div>
+             <div className="text-sm text-muted-foreground">Memuat...</div>
+          </div>
+        );
+    }
 
     return (
-        <div className="text-center">
+        <div className="text-center h-[68px]">
             <p className="text-4xl font-bold text-gray-800 dark:text-gray-200">
                 {format(time, 'HH:mm:ss')}
             </p>
@@ -500,3 +515,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    
