@@ -28,6 +28,8 @@ import {
 import { Card, CardContent } from '../ui/card';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 const broadcastSchema = z.object({
@@ -68,48 +70,56 @@ export default function BroadcastMessage() {
 
   async function onSubmit(values: z.infer<typeof broadcastSchema>) {
     setIsLoading(true);
-    try {
-        await addDoc(collection(db, "broadcasts"), {
-            ...values,
-            timestamp: new Date(),
-        });
+    const broadcastData = {
+        ...values,
+        timestamp: new Date(),
+    };
+    const collectionRef = collection(db, "broadcasts");
+
+    addDoc(collectionRef, broadcastData)
+      .then(() => {
         toast({
             title: "Success!",
             description: "Your broadcast message has been sent.",
         });
         form.reset();
-        fetchBroadcasts(); // Refresh data
-    } catch (error) {
-        console.error("Error sending broadcast: ", error);
-        toast({
-            title: "Error",
-            description: "Could not send broadcast message.",
-            variant: "destructive",
+        fetchBroadcasts();
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: collectionRef.path,
+          operation: 'create',
+          requestResourceData: broadcastData,
         });
-    } finally {
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
         setIsLoading(false);
-    }
+      });
   }
 
   const handleDelete = async (id: string) => {
     setIsLoading(true);
-    try {
-        await deleteDoc(doc(db, "broadcasts", id));
+    const docRef = doc(db, "broadcasts", id);
+    
+    deleteDoc(docRef)
+      .then(() => {
         toast({
             title: "Success",
             description: "Broadcast message deleted.",
         });
-        fetchBroadcasts(); // Refresh data
-    } catch (error) {
-        console.error("Error deleting broadcast:", error);
-        toast({
-            title: "Error",
-            description: "Could not delete broadcast message.",
-            variant: "destructive",
+        fetchBroadcasts();
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'delete',
         });
-    } finally {
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
         setIsLoading(false);
-    }
+      });
   };
 
   return (
@@ -235,3 +245,5 @@ export default function BroadcastMessage() {
     </div>
   );
 }
+
+    

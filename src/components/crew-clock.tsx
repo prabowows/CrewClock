@@ -28,6 +28,8 @@ import { formatDistanceToNow } from 'date-fns';
 import Autoplay from "embla-carousel-autoplay";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, onSnapshot } from "firebase/firestore";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function CrewClock() {
   const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
@@ -250,42 +252,42 @@ export default function CrewClock() {
     if (!selectedCrewMember || !assignedStore || !capturedImage || !selectedShift) return;
   
     setIsProcessing(true);
-  
-    try {
-      const photoURL = capturedImage;
-  
-      await addDoc(collection(db, 'attendance'), {
-        crewMemberId: selectedCrewMember.id,
-        crewMemberName: selectedCrewMember.name,
-        storeId: assignedStore.id,
-        storeName: assignedStore.name,
-        timestamp: new Date(),
-        type,
-        photoURL: photoURL,
-        shift: selectedShift,
-      });
-  
-      toast({
-        title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
-        description: `${selectedCrewMember.name} at ${assignedStore.name}`,
-        variant: 'default',
-      });
-      // Reset to initial state
-      setCapturedImage(null);
-      setSelectedCrewId(null);
-      setSelectedShift(null);
-      setSelectedStoreId(null);
+    
+    const attendanceData = {
+      crewMemberId: selectedCrewMember.id,
+      crewMemberName: selectedCrewMember.name,
+      storeId: assignedStore.id,
+      storeName: assignedStore.name,
+      timestamp: new Date(),
+      type,
+      photoURL: capturedImage,
+      shift: selectedShift,
+    };
+    const collectionRef = collection(db, 'attendance');
 
-    } catch (e) {
-      console.error('Error during clock action: ', e);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not record attendance. Check Firestore rules.',
+    addDoc(collectionRef, attendanceData)
+      .then(() => {
+        toast({
+          title: `Successfully Clocked ${type === 'in' ? 'In' : 'Out'}!`,
+          description: `${selectedCrewMember.name} at ${assignedStore.name}`,
+          variant: 'default',
+        });
+        setCapturedImage(null);
+        setSelectedCrewId(null);
+        setSelectedShift(null);
+        setSelectedStoreId(null);
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: collectionRef.path,
+          operation: 'create',
+          requestResourceData: attendanceData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsProcessing(false);
       });
-    } finally {
-      setIsProcessing(false);
-    }
   };
 
 
@@ -487,3 +489,5 @@ export default function CrewClock() {
     </Card>
   );
 }
+
+    

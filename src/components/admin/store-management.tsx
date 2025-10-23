@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 const storeSchema = z.object({
@@ -83,55 +85,75 @@ export default function StoreManagement() {
 
   async function onSubmit(values: z.infer<typeof storeSchema>) {
     setIsLoading(true);
-    try {
-      if (editingStore) {
-        const storeRef = doc(db, "stores", editingStore.id);
-        await updateDoc(storeRef, values);
-        toast({
-          title: "Success",
-          description: `Store ${values.name} updated.`,
+    if (editingStore) {
+      const storeRef = doc(db, "stores", editingStore.id);
+      updateDoc(storeRef, values)
+        .then(() => {
+          toast({
+            title: "Success",
+            description: `Store ${values.name} updated.`,
+          });
+          setEditingStore(null);
+          form.reset();
+          fetchStores();
+        })
+        .catch((serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: storeRef.path,
+            operation: 'update',
+            requestResourceData: values,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        })
+        .finally(() => {
+            setIsLoading(false);
         });
-      } else {
-        await addDoc(collection(db, "stores"), values);
-        toast({
-          title: "Success",
-          description: `Store ${values.name} added.`,
+    } else {
+      const collectionRef = collection(db, "stores");
+      addDoc(collectionRef, values)
+        .then(() => {
+            toast({
+                title: "Success",
+                description: `Store ${values.name} added.`,
+            });
+            form.reset();
+            fetchStores();
+        })
+        .catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: collectionRef.path,
+              operation: 'create',
+              requestResourceData: values,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        })
+        .finally(() => {
+            setIsLoading(false);
         });
-      }
-      setEditingStore(null);
-      form.reset();
-      fetchStores(); // Refresh data
-    } catch (error) {
-      console.error("Error saving store:", error);
-      toast({
-        title: "Error",
-        description: "Could not save store.",
-        variant: "destructive",
-      });
-    } finally {
-        setIsLoading(false);
     }
   }
 
   const handleDelete = async (storeId: string) => {
     setIsLoading(true);
-    try {
-      await deleteDoc(doc(db, "stores", storeId));
-      toast({
-        title: "Success",
-        description: "Store deleted.",
-      });
-      fetchStores(); // Refresh data
-    } catch (error) {
-      console.error("Error deleting store:", error);
-      toast({
-        title: "Error",
-        description: "Could not delete store.",
-        variant: "destructive"
-      });
-    } finally {
+    const docRef = doc(db, "stores", storeId);
+    deleteDoc(docRef)
+      .then(() => {
+        toast({
+          title: "Success",
+          description: "Store deleted.",
+        });
+        fetchStores();
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
         setIsLoading(false);
-    }
+      });
   };
 
   const handleEdit = (store: Store) => {
@@ -255,3 +277,5 @@ export default function StoreManagement() {
     </div>
   );
 }
+
+    

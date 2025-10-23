@@ -52,6 +52,8 @@ import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 type AttendanceSummary = {
@@ -196,63 +198,73 @@ export default function AttendanceLog() {
   const handleSaveNote = async () => {
     if (!selectedLogForNotes) return;
     setIsLoading(true);
-    try {
-        const logRef = doc(db, "attendance", selectedLogForNotes.id);
-        await updateDoc(logRef, { notes: noteInput });
+
+    const logRef = doc(db, "attendance", selectedLogForNotes.id);
+    const updatedData = { notes: noteInput };
+
+    updateDoc(logRef, updatedData)
+      .then(() => {
         toast({
             title: "Success",
             description: "Note saved successfully.",
         });
         setSelectedLogForNotes(null);
-        await fetchData();
-    } catch (error) {
-        console.error("Error saving note: ", error);
-        toast({
-            title: "Error",
-            description: "Could not save note.",
-            variant: "destructive",
+        fetchData();
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: logRef.path,
+          operation: 'update',
+          requestResourceData: updatedData,
         });
-    } finally {
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
         setIsLoading(false);
-    }
+      });
   };
 
   async function onManualEntrySubmit(values: z.infer<typeof manualEntrySchema>) {
     setIsLoading(true);
-    try {
-        const { date, time, ...rest } = values;
-        const [hours, minutes] = time.split(':').map(Number);
-        const timestamp = new Date(date);
-        timestamp.setHours(hours, minutes);
+    
+    const { date, time, ...rest } = values;
+    const [hours, minutes] = time.split(':').map(Number);
+    const timestamp = new Date(date);
+    timestamp.setHours(hours, minutes);
 
-        const crewMember = crewMembers.find(c => c.id === values.crewMemberId);
-        const store = stores.find(s => s.id === values.storeId);
+    const crewMember = crewMembers.find(c => c.id === values.crewMemberId);
+    const store = stores.find(s => s.id === values.storeId);
 
-        await addDoc(collection(db, "attendance"), {
-            ...rest,
-            timestamp,
-            crewMemberName: crewMember?.name || 'N/A',
-            storeName: store?.name || 'N/A',
-            photoURL: '',
-        });
+    const attendanceData = {
+        ...rest,
+        timestamp,
+        crewMemberName: crewMember?.name || 'N/A',
+        storeName: store?.name || 'N/A',
+        photoURL: '',
+    };
+    const collectionRef = collection(db, "attendance");
 
+    addDoc(collectionRef, attendanceData)
+      .then(() => {
         toast({
             title: "Success",
             description: "Manual attendance entry added.",
         });
         setIsManualEntryOpen(false);
         form.reset();
-        await fetchData();
-    } catch (error) {
-        console.error("Error adding manual entry: ", error);
-        toast({
-            title: "Error",
-            description: "Could not add manual entry.",
-            variant: "destructive",
+        fetchData();
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: collectionRef.path,
+          operation: 'create',
+          requestResourceData: attendanceData,
         });
-    } finally {
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
         setIsLoading(false);
-    }
+      });
   }
 
   const LoadingOverlay = () => (
@@ -443,7 +455,14 @@ export default function AttendanceLog() {
                                        </DialogDescription>
                                    </DialogHeader>
                                    <div className="mt-4">
-                                       <Image src={selectedLogForImage.photoURL!} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
+                                       {selectedLogForImage.photoURL && (
+                                           <Image src={selectedLogForImage.photoURL} alt={`Enlarged photo for ${selectedLogForImage.crewMemberName}`} width={400} height={400} className="rounded-lg object-contain w-full" />
+                                       )}
+                                       {!selectedLogForImage.photoURL && (
+                                            <div className="w-full h-64 flex items-center justify-center bg-muted rounded-lg">
+                                                <Camera className="w-12 h-12 text-muted-foreground" />
+                                            </div>
+                                       )}
                                    </div>
                                </DialogContent>
                            )}
@@ -568,7 +587,7 @@ export default function AttendanceLog() {
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Pilih seorang kru" />
-                                        </Trigger>
+                                        </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
                                         {manualEntryFilteredCrew.map(crew => (
@@ -665,7 +684,7 @@ export default function AttendanceLog() {
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Pilih shift" />
-                                        </Trigger>
+                                        </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
                                         <SelectItem value="Shift 1">Shift 1</SelectItem>
@@ -686,7 +705,7 @@ export default function AttendanceLog() {
                                     <Textarea placeholder="e.g., Lupa clock in pagi ini" {...field} />
                                 </FormControl>
                                 <FormMessage />
-                            </Form-Item>
+                            </FormItem> 
                         )}
                     />
                     <DialogFooter>
@@ -700,3 +719,5 @@ export default function AttendanceLog() {
     </div>
   );
 }
+
+    

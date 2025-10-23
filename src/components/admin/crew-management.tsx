@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { db } from '@/lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const crewSchema = z.object({
   name: z.string().min(2, "Crew member name must be at least 2 characters."),
@@ -83,55 +85,75 @@ export default function CrewManagement() {
 
   async function onSubmit(values: z.infer<typeof crewSchema>) {
     setIsLoading(true);
-    try {
-        if (editingCrew) {
-            const crewRef = doc(db, "crew", editingCrew.id);
-            await updateDoc(crewRef, values);
+    if (editingCrew) {
+        const crewRef = doc(db, "crew", editingCrew.id);
+        updateDoc(crewRef, values)
+          .then(() => {
             toast({
                 title: "Success",
                 description: `Crew member ${values.name} updated.`,
             });
-        } else {
-            await addDoc(collection(db, "crew"), values);
+            setEditingCrew(null);
+            form.reset();
+            fetchData();
+          })
+          .catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: crewRef.path,
+              operation: 'update',
+              requestResourceData: values,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+    } else {
+        const collectionRef = collection(db, "crew");
+        addDoc(collectionRef, values)
+          .then(() => {
             toast({
                 title: "Success",
                 description: `Crew member ${values.name} added.`,
             });
-        }
-        setEditingCrew(null);
-        form.reset();
-        fetchData(); // Refresh data
-    } catch (error) {
-        console.error("Error saving crew member:", error);
-        toast({
-            title: "Error",
-            description: "Could not save crew member.",
-            variant: "destructive",
-        });
-    } finally {
-        setIsLoading(false);
+            form.reset();
+            fetchData();
+          })
+          .catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: collectionRef.path,
+              operation: 'create',
+              requestResourceData: values,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
     }
   }
 
   const handleDelete = async (crewId: string, crewName: string) => {
     setIsLoading(true);
-    try {
-        await deleteDoc(doc(db, "crew", crewId));
+    const docRef = doc(db, "crew", crewId);
+    deleteDoc(docRef)
+      .then(() => {
         toast({
             title: "Success",
             description: `Crew member ${crewName} deleted.`,
         });
-        fetchData(); // Refresh data
-    } catch (error) {
-        console.error("Error deleting crew member:", error);
-        toast({
-            title: "Error",
-            description: "Could not delete crew member.",
-            variant: "destructive"
+        fetchData();
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'delete',
         });
-    } finally {
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
         setIsLoading(false);
-    }
+      });
   };
   
   const handleEdit = (crew: CrewMember) => {
@@ -255,3 +277,5 @@ export default function CrewManagement() {
     </div>
   );
 }
+
+    
