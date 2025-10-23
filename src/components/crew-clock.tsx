@@ -30,12 +30,11 @@ import { useFirestore } from "@/firebase";
 import { collection, addDoc, query, where, orderBy, limit, onSnapshot, Timestamp } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { stores as staticStores, crewMembers as staticCrew, broadcastMessages as staticBroadcasts } from '@/../scripts/seed.js';
 
 export default function CrewClock() {
-  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>(staticCrew.map((c: any) => ({...c, name: `${c.firstName} ${c.lastName}`})));
-  const [stores, setStores] = useState<Store[]>(staticStores);
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>(staticBroadcasts.map((b: any) => ({...b, timestamp: new Date(b.timestamp)})));
+  const [allCrewMembers, setAllCrewMembers] = useState<CrewMember[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [selectedShift, setSelectedShift] = useState<string | null>(null);
@@ -59,6 +58,50 @@ export default function CrewClock() {
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!db) return;
+    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
+      setAllCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'crew',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+
+    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
+      setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'stores',
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+
+    const qBroadcasts = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
+    const unsubBroadcasts = onSnapshot(qBroadcasts, (snapshot) => {
+        const broadcastsData: BroadcastMessage[] = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            broadcastsData.push({
+                id: doc.id,
+                ...data,
+                timestamp: (data.timestamp as Timestamp).toDate(),
+            } as BroadcastMessage);
+        });
+        setBroadcasts(broadcastsData);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'broadcasts',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+
     // Get location once on mount
     setLocationError(null);
     if (navigator.geolocation) {
@@ -78,7 +121,13 @@ export default function CrewClock() {
       setLocationError("Geolocation is not supported by this browser.");
       setIsLocating(false);
     }
-  }, []);
+
+    return () => {
+      unsubCrew();
+      unsubStores();
+      unsubBroadcasts();
+    };
+  }, [db]);
   
   const filteredCrewMembers = useMemo(() => {
     if (!selectedStoreId) return [];
@@ -457,5 +506,3 @@ export default function CrewClock() {
     </Card>
   );
 }
-
-    

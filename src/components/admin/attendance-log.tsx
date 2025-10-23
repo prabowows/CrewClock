@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -53,7 +54,6 @@ import { DateRange } from 'react-day-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { stores as staticStores, crewMembers as staticCrew, attendanceLogs as staticLogs } from '@/../scripts/seed.js';
 
 type AttendanceSummary = {
   crewMemberId: string;
@@ -75,9 +75,9 @@ const manualEntrySchema = z.object({
 
 
 export default function AttendanceLog() {
-  const [logs, setLogs] = useState<AttendanceLogType[]>(staticLogs.map((l: any) => ({...l, timestamp: new Date(l.timestamp)})));
-  const [stores, setStores] = useState<Store[]>(staticStores);
-  const [crewMembers, setCrewMembers] = useState<CrewMemberType[]>(staticCrew.map((c: any) => ({...c, name: `${c.firstName} ${c.lastName}`})));
+  const [logs, setLogs] = useState<AttendanceLogType[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [crewMembers, setCrewMembers] = useState<CrewMemberType[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('all');
   const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(),
@@ -87,13 +87,61 @@ export default function AttendanceLog() {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [selectedLogForImage, setSelectedLogForImage] = useState<AttendanceLogType | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<AttendanceSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedLogForNotes, setSelectedLogForNotes] = useState<AttendanceLogType | null>(null);
   const [noteInput, setNoteInput] = useState("");
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [manualEntryStore, setManualEntryStore] = useState<string | undefined>();
   const { toast } = useToast();
   const db = useFirestore();
+
+  useEffect(() => {
+    if (!db) return;
+    setIsLoading(true);
+
+    const q = query(collection(db, "attendance"), orderBy("timestamp", "desc"));
+    
+    const unsubLogs = onSnapshot(q, (snapshot) => {
+        setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: (doc.data().timestamp as Timestamp).toDate() } as AttendanceLogType)));
+        setIsLoading(false);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'attendance',
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setIsLoading(false);
+    });
+
+    const unsubStores = onSnapshot(collection(db, "stores"), (snapshot) => {
+        setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'stores',
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+    
+    const unsubCrew = onSnapshot(collection(db, "crew"), (snapshot) => {
+        setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMemberType)));
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'crew',
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+
+    return () => {
+        unsubLogs();
+        unsubStores();
+        unsubCrew();
+    }
+  }, [db]);
 
   const form = useForm<z.infer<typeof manualEntrySchema>>({
     resolver: zodResolver(manualEntrySchema),
@@ -177,7 +225,6 @@ export default function AttendanceLog() {
     
     updateDoc(logRef, updatedData)
       .then(() => {
-        setLogs(prevLogs => prevLogs.map(l => l.id === selectedLogForNotes.id ? {...l, notes: noteInput} : l));
         toast({
           title: "Catatan Disimpan",
           description: "Catatan kehadiran telah diperbarui.",
@@ -195,6 +242,7 @@ export default function AttendanceLog() {
   };
 
   async function onManualEntrySubmit(values: z.infer<typeof manualEntrySchema>) {
+    if (!db) return;
     const selectedCrew = crewMembers.find(c => c.id === values.crewMemberId);
     const assignedStore = stores.find(s => s.id === values.storeId);
 
@@ -207,8 +255,7 @@ export default function AttendanceLog() {
     const finalTimestamp = new Date(values.date);
     finalTimestamp.setHours(hours, minutes);
 
-    const newLog: AttendanceLogType = {
-        id: `manual-${new Date().getTime()}`,
+    const newLog: Omit<AttendanceLogType, 'id'> = {
         crewMemberId: selectedCrew.id,
         crewMemberName: selectedCrew.name,
         storeId: assignedStore.id,
@@ -220,19 +267,27 @@ export default function AttendanceLog() {
         photoURL: '', // No photo for manual entry
     };
     
-    setLogs(prev => [newLog, ...prev]);
-
-    toast({
-        title: "Entri Manual Berhasil",
-        description: `Log absensi untuk ${selectedCrew.name} telah ditambahkan. (Lokal)`,
-    });
-    setIsManualEntryOpen(false);
-    form.reset({
-        storeId: "",
-        crewMemberId: "",
-        time: format(new Date(), "HH:mm"),
-        shift: "",
-        notes: "",
+    addDoc(collection(db, 'attendance'), newLog)
+    .then(() => {
+        toast({
+            title: "Entri Manual Berhasil",
+            description: `Log absensi untuk ${selectedCrew.name} telah ditambahkan.`,
+        });
+        setIsManualEntryOpen(false);
+        form.reset({
+            storeId: "",
+            crewMemberId: "",
+            time: format(new Date(), "HH:mm"),
+            shift: "",
+            notes: "",
+        });
+    }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'attendance',
+          operation: 'create',
+          requestResourceData: newLog,
+        });
+        errorEmitter.emit('permission-error', permissionError);
     });
   }
 

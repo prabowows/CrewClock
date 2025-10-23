@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -23,7 +24,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { stores as staticStores, crewMembers as staticCrew } from '@/../scripts/seed.js';
+import { useFirestore } from '@/firebase';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const crewSchema = z.object({
   name: z.string().min(2, "Crew member name must be at least 2 characters."),
@@ -31,10 +35,44 @@ const crewSchema = z.object({
 });
 
 export default function CrewManagement() {
-  const [crewMembers, setCrewMembers] = useState<CrewMember[]>(staticCrew.map((c: any) => ({...c, name: `${c.firstName} ${c.lastName}`})));
-  const [stores, setStores] = useState<Store[]>(staticStores);
+  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [editingCrew, setEditingCrew] = useState<CrewMember | null>(null);
   const { toast } = useToast();
+  const db = useFirestore();
+
+  useEffect(() => {
+    if (!db) return;
+
+    const qCrew = query(collection(db, "crew"), orderBy("name"));
+    const unsubCrew = onSnapshot(qCrew, (snapshot) => {
+        setCrewMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CrewMember)));
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'crew',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+
+    const qStores = query(collection(db, "stores"), orderBy("name"));
+    const unsubStores = onSnapshot(qStores, (snapshot) => {
+        setStores(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Store)));
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'stores',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+
+    return () => {
+        unsubCrew();
+        unsubStores();
+    }
+  }, [db]);
 
   const form = useForm<z.infer<typeof crewSchema>>({
     resolver: zodResolver(crewSchema),
@@ -59,25 +97,58 @@ export default function CrewManagement() {
   }, [editingCrew, form]);
 
   async function onSubmit(values: z.infer<typeof crewSchema>) {
+    if (!db) return;
     if (editingCrew) {
-      setCrewMembers(prev => prev.map(c => c.id === editingCrew.id ? { ...c, ...values } : c));
-      toast({ title: "Crew Member Updated", description: `${values.name} has been successfully updated. (Lokal)` });
-      setEditingCrew(null);
+      const crewRef = doc(db, 'crew', editingCrew.id);
+      updateDoc(crewRef, values)
+        .then(() => {
+            toast({ title: "Crew Member Updated", description: `${values.name} has been successfully updated.` });
+            setEditingCrew(null);
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: crewRef.path,
+                operation: 'update',
+                requestResourceData: values,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+
     } else {
-      const newCrew: CrewMember = { id: `new-${new Date().getTime()}`, ...values };
-      setCrewMembers(prev => [...prev, newCrew].sort((a, b) => a.name.localeCompare(b.name)));
-      toast({ title: "Crew Member Added", description: `${values.name} has been successfully added. (Lokal)` });
+      addDoc(collection(db, 'crew'), values)
+        .then(() => {
+            toast({ title: "Crew Member Added", description: `${values.name} has been successfully added.` });
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'crew',
+                operation: 'create',
+                requestResourceData: values,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
     }
     form.reset({ name: "", storeId: "" });
   }
 
-  const handleDelete = async (crewId: string) => {
-    setCrewMembers(prev => prev.filter(c => c.id !== crewId));
-    toast({
-        title: "Crew Member Deleted",
-        description: "The crew member has been successfully deleted. (Lokal)",
-        variant: "destructive"
-    });
+  const handleDelete = async (crewId: string, crewName: string) => {
+    if (!db) return;
+    const crewRef = doc(db, 'crew', crewId);
+    deleteDoc(crewRef)
+        .then(() => {
+            toast({
+                title: "Crew Member Deleted",
+                description: `${crewName} has been successfully deleted.`,
+                variant: "destructive"
+            });
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: crewRef.path,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
   };
   
   const handleEdit = (crew: CrewMember) => {
@@ -176,7 +247,7 @@ export default function CrewManagement() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(crew.id)} className='bg-destructive hover:bg-destructive/90'>Delete</AlertDialogAction>
+                                <AlertDialogAction onClick={() => handleDelete(crew.id, crew.name)} className='bg-destructive hover:bg-destructive/90'>Delete</AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>

@@ -26,7 +26,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from '../ui/card';
-import { broadcastMessages as staticBroadcasts } from '@/../scripts/seed.js';
+import { useFirestore } from '@/firebase';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const broadcastSchema = z.object({
   message: z.string().min(10, "Message must be at least 10 characters.").max(500, "Message cannot exceed 500 characters."),
@@ -34,8 +38,34 @@ const broadcastSchema = z.object({
 });
 
 export default function BroadcastMessage() {
-  const [broadcasts, setBroadcasts] = useState<BroadcastMessageType[]>(staticBroadcasts.map((b: any) => ({...b, timestamp: new Date(b.timestamp)})));
+  const [broadcasts, setBroadcasts] = useState<BroadcastMessageType[]>([]);
   const { toast } = useToast();
+  const db = useFirestore();
+
+  useEffect(() => {
+    if (!db) return;
+    const q = query(collection(db, "broadcasts"), orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const broadcastsData: BroadcastMessageType[] = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            broadcastsData.push({
+                id: doc.id,
+                ...data,
+                timestamp: (data.timestamp as Timestamp).toDate(),
+            } as BroadcastMessageType);
+        });
+        setBroadcasts(broadcastsData);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'broadcasts',
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+    return () => unsubscribe();
+  }, [db]);
 
   const form = useForm<z.infer<typeof broadcastSchema>>({
     resolver: zodResolver(broadcastSchema),
@@ -46,29 +76,49 @@ export default function BroadcastMessage() {
   });
 
   async function onSubmit(values: z.infer<typeof broadcastSchema>) {
-    const newBroadcast: BroadcastMessageType = {
-        id: `new-${new Date().getTime()}`,
+    if (!db) return;
+    const newBroadcast = {
         message: values.message,
         timestamp: new Date(),
-        attachmentURL: values.attachmentURL || undefined,
+        attachmentURL: values.attachmentURL || null,
     };
     
-    setBroadcasts(prev => [newBroadcast, ...prev]);
-
-    toast({
-        title: "Broadcast Sent! (Lokal)",
-        description: "Your message has been sent to all crew members.",
-    });
-    form.reset();
+    addDoc(collection(db, 'broadcasts'), newBroadcast)
+        .then(() => {
+            toast({
+                title: "Broadcast Sent!",
+                description: "Your message has been sent to all crew members.",
+            });
+            form.reset();
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'broadcasts',
+                operation: 'create',
+                requestResourceData: newBroadcast,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
   }
 
   const handleDelete = async (id: string) => {
-    setBroadcasts(prev => prev.filter(b => b.id !== id));
-    toast({
-        title: "Broadcast Deleted (Lokal)",
-        description: "The message has been removed from the history.",
-        variant: "destructive"
-    });
+    if (!db) return;
+    const broadcastRef = doc(db, 'broadcasts', id);
+    deleteDoc(broadcastRef)
+        .then(() => {
+            toast({
+                title: "Broadcast Deleted",
+                description: "The message has been removed from the history.",
+                variant: "destructive"
+            });
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: broadcastRef.path,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
   };
 
   return (
