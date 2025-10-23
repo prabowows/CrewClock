@@ -126,7 +126,7 @@ export default function AttendanceLog() {
 
   useEffect(() => {
     fetchData();
-  }, [toast]);
+  }, []);
 
   const filteredLogs = useMemo(() => {
     if (!date?.from) return [];
@@ -254,7 +254,6 @@ export default function AttendanceLog() {
     }
   }
 
-
   const LoadingOverlay = () => (
     <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
         <Loader className="h-8 w-8 animate-spin text-primary" />
@@ -263,6 +262,7 @@ export default function AttendanceLog() {
 
   return (
     <div className='space-y-6 relative'>
+      {isLoading && <LoadingOverlay />}
       <div className="flex items-center gap-4 mb-4">
         <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
           <PopoverTrigger asChild>
@@ -318,8 +318,7 @@ export default function AttendanceLog() {
       </div>
 
       <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedSummary(null)}>
-        <Card className='relative'>
-            {isLoading && <LoadingOverlay />}
+        <Card>
             <CardHeader>
                 <CardTitle className="flex items-center"><Users className="mr-3"/>Ringkasan Kehadiran</CardTitle>
             </CardHeader>
@@ -400,8 +399,7 @@ export default function AttendanceLog() {
       </Dialog>
       
       <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedLogForNotes(null)}>
-        <div className='relative'>
-            {isLoading && <LoadingOverlay />}
+        <div>
           <h3 className="text-xl font-semibold mb-4 text-primary">Log Lengkap</h3>
           <div className="border rounded-lg">
             <Table>
@@ -701,5 +699,3 @@ export default function AttendanceLog() {
     </div>
   );
 }
-
-    
