@@ -124,11 +124,9 @@ export default function Overview() {
     
     return (
         <div className='space-y-6'>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2">
                 {renderStatCard(<Users className="h-4 w-4" />, totalCrew, "Total Kru", isLoading, "text-primary")}
                 {renderStatCard(<Building className="h-4 w-4" />, totalStores, "Total Toko", isLoading, "text-primary")}
-                {renderStatCard(<UserCheck className="h-4 w-4" />, presentTodayCount, "Hadir Hari Ini", isLoading, "text-green-500")}
-                {renderStatCard(<UserX className="h-4 w-4" />, absentTodayCount, "Absen Hari Ini", isLoading, "text-red-500")}
             </div>
 
             <div className='grid md:grid-cols-2 gap-6'>
