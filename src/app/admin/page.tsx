@@ -27,7 +27,7 @@ export default function AdminPage() {
               <TabsTrigger value="stores">Stores</TabsTrigger>
               <TabsTrigger value="crew">Crew</TabsTrigger>
               <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
-              <TabsTrigger value="recap">Recap</TabsTrigger>
+              <TabsTrigger value="recap">Daily Input</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview">
