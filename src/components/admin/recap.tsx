@@ -1,14 +1,13 @@
+
 "use client";
 
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, FileText, Clipboard, BarChart, Loader2, Copy } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
-import { Textarea } from '../ui/textarea';
-import { generateRecap } from '@/ai/flows/generate-recap-flow';
 
 type RecapData = {
   'Store': string;
@@ -36,8 +35,6 @@ const currencyFormatter = (value: number) => `Rp${new Intl.NumberFormat('id-ID')
 export default function Recap() {
   const [data, setData] = useState<RecapData[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [report, setReport] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,52 +107,9 @@ export default function Recap() {
     reader.readAsBinaryString(file);
   };
 
-  const handleGenerateReport = async () => {
-    if (data.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Tidak Ada Data',
-        description: 'Silakan unggah file Excel terlebih dahulu.',
-      });
-      return;
-    }
-    setIsLoading(true);
-    setReport('');
-    try {
-      const result = await generateRecap({ data: JSON.stringify(data) });
-      setReport(result);
-    } catch (error) {
-      console.error('Error generating report:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Gagal Membuat Laporan',
-        description: 'Terjadi kesalahan saat berkomunikasi dengan AI.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const copyToClipboard = () => {
-    if (!report) {
-        toast({
-            variant: 'destructive',
-            title: 'Laporan Kosong',
-            description: 'Tidak ada laporan untuk disalin.',
-        });
-        return;
-    }
-    navigator.clipboard.writeText(report);
-    toast({
-        title: 'Laporan Disalin',
-        description: 'Laporan telah berhasil disalin ke clipboard.',
-    });
-  }
-
   const resetState = () => {
     setData([]);
     setFileName(null);
-    setReport('');
     if (fileInputRef.current) {
         fileInputRef.current.value = '';
     }
@@ -202,7 +156,7 @@ export default function Recap() {
       <Card>
         <CardHeader>
           <CardTitle>Unggah Laporan Penjualan</CardTitle>
-          <CardDescription>Unggah file Excel laporan penjualan Anda untuk membuat visualisasi dan ringkasan.</CardDescription>
+          <CardDescription>Unggah file Excel laporan penjualan Anda untuk membuat visualisasi.</CardDescription>
         </CardHeader>
         <CardContent>
             <div 
@@ -259,37 +213,6 @@ export default function Recap() {
                     </ResponsiveContainer>
                 </CardContent>
             </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Laporan Teks</CardTitle>
-              <CardDescription>Gunakan AI untuk menghasilkan ringkasan teks dari data yang Anda unggah. Klik salin untuk menempelkannya di tempat lain.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button onClick={handleGenerateReport} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                Buat Laporan
-              </Button>
-              {report && (
-                 <div className="relative">
-                    <Textarea 
-                        value={report} 
-                        readOnly 
-                        className="w-full h-60 text-sm bg-muted" 
-                        placeholder="Laporan akan muncul di sini..."
-                    />
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={copyToClipboard}
-                        className="absolute top-2 right-2"
-                    >
-                        <Copy className="h-4 w-4" />
-                    </Button>
-                 </div>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
     </div>
