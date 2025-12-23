@@ -164,6 +164,9 @@ export default function Recap() {
         report += `Total Belanja: ${currencyFormatter(item['Belanja Buah'] + item['Belanja Salad'] + item['Gajian'] + item['Bensin Viar'] + item['Lainnya'])}\n`;
         report += `   - Belanja Buah: ${currencyFormatter(item['Belanja Buah'])}\n`;
         report += `   - Belanja Salad: ${currencyFormatter(item['Belanja Salad'])}\n`;
+        report += `   - Gajian: ${currencyFormatter(item['Gajian'])}\n`;
+        report += `   - Bensin Viar: ${currencyFormatter(item['Bensin Viar'])}\n`;
+        report += `   - Lainnya: ${currencyFormatter(item['Lainnya'])}\n`;
         report += `\n`;
         report += `Cup Terjual (Online): ${item['CupOnline']} cups\n`;
         report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n`;
@@ -337,5 +340,3 @@ export default function Recap() {
     </div>
   );
 }
-
-    
