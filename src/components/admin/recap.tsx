@@ -27,8 +27,8 @@ type RecapData = {
   'Total Bersih': number;
   'Sum Uang Offline': number;
   'Sum Uang Online': number;
-  'Cup Offline': number;
-  'Cup Online': number;
+  'CupOffline': number;
+  'CupOnline': number;
 };
 
 const currencyFormatter = (value: number) => `Rp${new Intl.NumberFormat('id-ID').format(value)}`;
@@ -59,13 +59,23 @@ export default function Recap() {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
 
-        const headers = Object.keys(jsonData[0] || {});
+        if (jsonData.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'File Kosong',
+                description: 'File Excel yang Anda unggah tidak berisi data.',
+            });
+            resetState();
+            return;
+        }
+        
+        const originalHeaders = Object.keys(jsonData[0] || {});
         const headerMap: { [key: string]: string } = {};
-        headers.forEach(h => {
+        originalHeaders.forEach(h => {
             headerMap[h.toLowerCase().trim()] = h;
         });
 
-        const requiredColumns = ['Store', 'Hari', 'Tanggal', 'QRIS', 'Gojek', 'Grab', 'Shopee', 'Online Order', 'Offline', 'Omset Kotor', 'Belanja', 'Belanja Salad', 'Uang Offline', 'Total Bersih', 'Sum Uang Offline', 'Sum Uang Online', 'Cup Offline', 'Cup Online'];
+        const requiredColumns = ['Store', 'Hari', 'Tanggal', 'QRIS', 'Gojek', 'Grab', 'Shopee', 'Online Order', 'Offline', 'Omset Kotor', 'Belanja', 'Belanja Salad', 'Uang Offline', 'Total Bersih', 'Sum Uang Offline', 'Sum Uang Online', 'CupOffline', 'CupOnline'];
         
         const normalizedHeaders = Object.keys(headerMap);
         const missingColumns = requiredColumns.filter(col => !normalizedHeaders.includes(col.toLowerCase().trim()));
@@ -100,8 +110,8 @@ export default function Recap() {
             'Total Bersih': Number(get('Total Bersih')) || 0,
             'Sum Uang Offline': Number(get('Sum Uang Offline')) || 0,
             'Sum Uang Online': Number(get('Sum Uang Online')) || 0,
-            'Cup Offline': Number(get('Cup Offline')) || 0,
-            'Cup Online': Number(get('Cup Online')) || 0,
+            'CupOffline': Number(get('CupOffline')) || 0,
+            'CupOnline': Number(get('CupOnline')) || 0,
           };
         });
         setData(formattedData);
@@ -140,8 +150,8 @@ export default function Recap() {
         report += `   - Belanja Buah: ${currencyFormatter(item['Belanja'])}\n`;
         report += `   - Belanja Salad: ${currencyFormatter(item['Belanja Salad'])}\n`;
         report += `\n`;
-        report += `Cup Terjual (Online): ${item['Cup Online']} cups\n`;
-        report += `Cup Terjual (Offline): ${item['Cup Offline']} cups\n`;
+        report += `Cup Terjual (Online): ${item['CupOnline']} cups\n`;
+        report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n`;
         report += `\n\n`;
     });
     
@@ -303,3 +313,5 @@ export default function Recap() {
     </div>
   );
 }
+
+    
