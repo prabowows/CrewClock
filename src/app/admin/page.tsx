@@ -5,6 +5,7 @@ import StoreManagement from "@/components/admin/store-management";
 import CrewManagement from "@/components/admin/crew-management";
 import BroadcastMessage from "@/components/admin/broadcast-message";
 import Overview from "@/components/admin/overview";
+import Recap from "@/components/admin/recap";
 
 export default function AdminPage() {
   return (
@@ -26,6 +27,7 @@ export default function AdminPage() {
               <TabsTrigger value="stores">Stores</TabsTrigger>
               <TabsTrigger value="crew">Crew</TabsTrigger>
               <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
+              <TabsTrigger value="recap">Recap</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview">
@@ -46,6 +48,10 @@ export default function AdminPage() {
 
             <TabsContent value="broadcast">
                 <BroadcastMessage />
+            </TabsContent>
+
+            <TabsContent value="recap">
+                <Recap />
             </TabsContent>
           </Tabs>
         </div>
