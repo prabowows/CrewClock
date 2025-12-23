@@ -144,6 +144,38 @@
         "message",
         "timestamp"
       ]
+    },
+    "DailyReport": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DailyReport",
+      "type": "object",
+      "description": "Represents a daily sales and expense report, stored as a JSON string.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the daily report, typically the date in YYYY-MM-DD format."
+        },
+        "reportDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The date of the report."
+        },
+        "jsonData": {
+          "type": "string",
+          "description": "A JSON string containing the array of RecapData for that day."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the report was saved."
+        }
+      },
+      "required": [
+        "id",
+        "reportDate",
+        "jsonData",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -245,8 +277,24 @@
             }
           ]
         }
+      },
+      {
+        "path": "/dailyReports/{reportId}",
+        "definition": {
+          "entityName": "DailyReport",
+          "schema": {
+            "$ref": "#/backend/entities/DailyReport"
+          },
+          "description": "Collection for storing processed daily sales reports as JSON strings.",
+          "params": [
+            {
+              "name": "reportId",
+              "description": "The unique identifier of the daily report, usually in YYYY-MM-DD format."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the CrewClock application's requirements, focusing on attendances, store management, crew management, and broadcast messaging. It prioritizes authorization independence, clarity, and scalability. \n\n**Authorization Independence and QAPs:** Authorization independence is achieved by avoiding `get()` calls in security rules. The structure ensures QAPs by segregating data based on access needs and using membership maps where necessary.\n\n**Admin Roles:** Admin privileges are managed through the `/roles_admin/{uid}` collection. The existence of a document in this collection grants admin access.\n\n**Stores:** Store data is stored in the `/stores/{storeId}` collection. This collection will store information about each store, such as its name and location. Admins can create and manage stores.\n\n**Store Crews:** Store crew data is stored in the `/stores/{storeId}/crew/{crewId}` collection. This structure enforces path-based ownership, as each crew member is associated with a specific store. This is essential for authorization, enabling rules like 'only admins or the store crew themselves can access their data'.\n\n**Attendance Logs:** Attendance logs are stored in `/stores/{storeId}/crew/{crewId}/attendance/{attendanceId}`. This nested structure continues the path-based ownership model. Each attendance record is tied to a specific crew member and store, ensuring clear ownership and simplified security rules.\n\n**Broadcast Messages:** Broadcast messages are stored in the `/broadcasts/{broadcastId}` collection. The `storeIds` array indicates which stores should receive the message. Security rules can ensure only admins can create broadcast messages. To support QAPs (rules are not filters), the messages are sent to *all* stores unless `storeIds` is present and non-empty. Store crew can only view messages if the message has the store id on the `storeIds` array.\n\n**Denormalization:** \nTo ensure Authorization Independence, the `storeId` is repeated on the attendance log. This avoids having to do a `get()` request to the `crew` document to verify its membership. It also allows for atomic creation.\nFor Broadcast Messages, each crew document has a field `allowedBroadcasts`. When creating a new broadcast, a backend process will update each affected Crew documents `allowedBroadcasts` field to contain the broadcast id. This allows each crew member to only be able to see allowed broadcasts in the UI."
+    "reasoning": "The Firestore structure is designed to support the CrewClock application's requirements, focusing on attendances, store management, crew management, and broadcast messaging. It prioritizes authorization independence, clarity, and scalability. \n\n**Authorization Independence and QAPs:** Authorization independence is achieved by avoiding `get()` calls in security rules. The structure ensures QAPs by segregating data based on access needs and using membership maps where necessary.\n\n**Admin Roles:** Admin privileges are managed through the `/roles_admin/{uid}` collection. The existence of a document in this collection grants admin access.\n\n**Stores:** Store data is stored in the `/stores/{storeId}` collection. This collection will store information about each store, such as its name and location. Admins can create and manage stores.\n\n**Store Crews:** Store crew data is stored in the `/stores/{storeId}/crew/{crewId}` collection. This structure enforces path-based ownership, as each crew member is associated with a specific store. This is essential for authorization, enabling rules like 'only admins or the store crew themselves can access their data'.\n\n**Attendance Logs:** Attendance logs are stored in `/stores/{storeId}/crew/{crewId}/attendance/{attendanceId}`. This nested structure continues the path-based ownership model. Each attendance record is tied to a specific crew member and store, ensuring clear ownership and simplified security rules.\n\n**Broadcast Messages:** Broadcast messages are stored in the `/broadcasts/{broadcastId}` collection. The `storeIds` array indicates which stores should receive the message. Security rules can ensure only admins can create broadcast messages. To support QAPs (rules are not filters), the messages are sent to *all* stores unless `storeIds` is present and non-empty. Store crew can only view messages if the message has the store id on the `storeIds` array.\n\n**Daily Reports**: Processed daily sales data from Excel files are stored in the `/dailyReports/{reportId}` collection. Storing the data as a JSON string (`jsonData`) allows for flexible data schemas from the uploaded files without requiring constant Firestore schema migrations. Admins have full access to create, read, and manage these reports.\n\n**Denormalization:** \nTo ensure Authorization Independence, the `storeId` is repeated on the attendance log. This avoids having to do a `get()` request to the `crew` document to verify its membership. It also allows for atomic creation.\nFor Broadcast Messages, each crew document has a field `allowedBroadcasts`. When creating a new broadcast, a backend process will update each affected Crew documents `allowedBroadcasts` field to contain the broadcast id. This allows each crew member to only be able to see allowed broadcasts in the UI."
   }
 }

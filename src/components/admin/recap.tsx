@@ -5,10 +5,21 @@ import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Copy, Check } from 'lucide-react';
+import { Upload, Copy, Check, Save } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { Textarea } from '../ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type RecapData = {
   'Store': string;
@@ -117,15 +128,15 @@ export default function Recap() {
             'Omset Kotor': Number(get('Omset Kotor')),
             'Belanja Buah': Number(get('Belanja Buah')) || 0,
             'Belanja Salad': Number(get('Belanja Salad')) || 0,
+            'Gajian': Number(get('Gajian')) || 0,
             'Bensin Viar': Number(get('Bensin Viar')) || 0,
+            'Lainnya': Number(get('Lainnya')) || 0,
             'Uang Offline': Number(get('Uang Offline')),
             'Total Bersih': Number(get('Total Bersih')),
             'Sum Uang Offline': Number(get('Sum Uang Offline')),
             'Sum Uang Online': Number(get('Sum Uang Online')),
             'CupOffline': Number(get('CupOffline')) || 0,
             'CupOnline': Number(get('CupOnline')) || 0,
-            'Gajian': Number(get('Gajian')) || 0,
-            'Lainnya': Number(get('Lainnya')) || 0,
           };
         });
         setData(formattedData);
@@ -193,13 +204,31 @@ export default function Recap() {
     }
   }, [data]);
 
-  const handleCopy = () => {
+  const handleCopyAndSave = () => {
+    // 1. Copy to clipboard
     navigator.clipboard.writeText(reportText).then(() => {
         setIsCopied(true);
         toast({ title: 'Laporan disalin ke clipboard!'});
         setTimeout(() => setIsCopied(false), 2000);
     });
-  }
+
+    // 2. Save to localStorage
+    const reportDate = data[0]?.Tanggal;
+    if (reportDate) {
+        // Here we could convert the date to a standard format like YYYY-MM-DD
+        const reportId = `report-${reportDate}`;
+        const dataToSave = {
+            id: reportId,
+            date: reportDate,
+            data: data, // The processed data array
+        };
+        localStorage.setItem(reportId, JSON.stringify(dataToSave));
+        toast({
+            title: "Laporan Disimpan",
+            description: `Laporan untuk tanggal ${reportDate} telah disimpan di peramban.`
+        })
+    }
+  };
 
   const resetState = () => {
     setData([]);
@@ -329,10 +358,30 @@ export default function Recap() {
                         className="min-h-[300px] bg-muted/50 text-sm font-mono"
                         placeholder="Unggah file untuk membuat laporan teks..."
                     />
-                    <Button onClick={handleCopy} disabled={!reportText}>
-                        {isCopied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
-                        {isCopied ? "Disalin!" : "Salin Laporan"}
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button className="w-full" disabled={!reportText}>
+                            <Save className="mr-2 h-4 w-4" />
+                            Salin & Simpan Laporan
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                              <AlertDialogTitle>Konfirmasi Tanggal Laporan</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                  Apakah tanggal laporan ini sudah benar? 
+                                  <br />
+                                  <strong className="text-foreground text-lg">{data[0]?.Tanggal}</strong>
+                                  <br />
+                                  Data akan disimpan berdasarkan tanggal ini.
+                              </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                              <AlertDialogCancel>Batal</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleCopyAndSave}>Ya, Simpan Laporan</AlertDialogAction>
+                          </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                 </CardContent>
             </Card>
         </>

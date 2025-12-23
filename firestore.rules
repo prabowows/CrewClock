@@ -81,6 +81,17 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isAdmin();
     }
 
+    /**
+     * @description Stores processed daily sales reports.
+     * @path /dailyReports/{reportId}
+     * @allow (read, write) - Admins can read and write daily reports.
+     * @deny (read, write) - Non-admins cannot access daily reports.
+     * @principle Admin-Only Access: Restricts all access to administrators.
+     */
+    match /dailyReports/{reportId} {
+      allow read, write: if isSignedIn() && isAdmin();
+    }
+
     // --- Helper Functions ---
     function isSignedIn() {
       return request.auth != null;
