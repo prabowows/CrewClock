@@ -1,13 +1,14 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Upload } from 'lucide-react';
+import { Upload, Copy, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
+import { Textarea } from '../ui/textarea';
 
 type RecapData = {
   'Store': string;
@@ -35,6 +36,8 @@ const currencyFormatter = (value: number) => `Rp${new Intl.NumberFormat('id-ID')
 export default function Recap() {
   const [data, setData] = useState<RecapData[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [reportText, setReportText] = useState<string>("");
+  const [isCopied, setIsCopied] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,10 +109,63 @@ export default function Recap() {
     };
     reader.readAsBinaryString(file);
   };
+  
+  const generateHardcodedReport = (recapData: RecapData[]) => {
+    if (recapData.length === 0) return "";
+
+    const date = recapData[0].Tanggal; // Assuming date is same for all entries in a file
+    let report = `Laporan Penjualan - ${date}\n\n`;
+
+    recapData.forEach(item => {
+        report += `📍 Store: ${item.Store}\n`;
+        report += `--------------------------------\n`;
+        report += `Omset Kotor: ${currencyFormatter(item['Omset Kotor'])}\n`;
+        report += `Total Bersih: ${currencyFormatter(item['Total Bersih'])}\n`;
+        report += `\n`;
+        report += `Penjualan Online: ${currencyFormatter(item['Online'])}\n`;
+        report += `Penjualan Offline: ${currencyFormatter(item['Offline'])}\n`;
+        report += `\n`;
+        report += `Total Belanja: ${currencyFormatter(item['Belanja'] + item['Belanja Salad'])}\n`;
+        report += `   - Belanja Buah: ${currencyFormatter(item['Belanja'])}\n`;
+        report += `   - Belanja Salad: ${currencyFormatter(item['Belanja Salad'])}\n`;
+        report += `\n`;
+        report += `Cup Terjual (Online): ${item['Cup Online']} cups\n`;
+        report += `Cup Terjual (Offline): ${item['Cup Offline']} cups\n`;
+        report += `\n\n`;
+    });
+    
+    const totalOmsetKotor = recapData.reduce((sum, item) => sum + item['Omset Kotor'], 0);
+    const totalBersih = recapData.reduce((sum, item) => sum + item['Total Bersih'], 0);
+
+    report += `Ringkasan Total\n`;
+    report += `================================\n`;
+    report += `Total Omset Kotor (Semua Toko): ${currencyFormatter(totalOmsetKotor)}\n`;
+    report += `Total Bersih (Semua Toko): ${currencyFormatter(totalBersih)}\n`;
+
+    return report;
+  }
+
+  useEffect(() => {
+    if (data.length > 0) {
+      const generatedText = generateHardcodedReport(data);
+      setReportText(generatedText);
+    } else {
+      setReportText("");
+    }
+  }, [data]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(reportText).then(() => {
+        setIsCopied(true);
+        toast({ title: 'Laporan disalin ke clipboard!'});
+        setTimeout(() => setIsCopied(false), 2000);
+    });
+  }
 
   const resetState = () => {
     setData([]);
     setFileName(null);
+    setReportText("");
     if (fileInputRef.current) {
         fileInputRef.current.value = '';
     }
@@ -213,8 +269,28 @@ export default function Recap() {
                     </ResponsiveContainer>
                 </CardContent>
             </Card>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Laporan Teks</CardTitle>
+                    <CardDescription>Ringkasan teks dari data yang Anda unggah. Klik salin untuk menempelkannya di tempat lain.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Textarea 
+                        readOnly
+                        value={reportText}
+                        className="min-h-[300px] bg-muted/50 text-sm font-mono"
+                        placeholder="Unggah file untuk membuat laporan teks..."
+                    />
+                    <Button onClick={handleCopy} disabled={!reportText}>
+                        {isCopied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                        {isCopied ? "Disalin!" : "Salin Laporan"}
+                    </Button>
+                </CardContent>
+            </Card>
         </>
       )}
     </div>
   );
 }
+
+    
