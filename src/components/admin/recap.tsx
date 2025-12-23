@@ -35,6 +35,8 @@ type RecapData = {
 };
 
 const currencyFormatter = (value: number) => `Rp${new Intl.NumberFormat('id-ID').format(value)}`;
+const numberFormatter = (value: number) => new Intl.NumberFormat('id-ID').format(value);
+
 
 export default function Recap() {
   const [data, setData] = useState<RecapData[]>([]);
@@ -120,8 +122,8 @@ export default function Recap() {
             'Total Bersih': Number(get('Total Bersih')),
             'Sum Uang Offline': Number(get('Sum Uang Offline')),
             'Sum Uang Online': Number(get('Sum Uang Online')),
-            'CupOffline': Number(get('CupOffline')),
-            'CupOnline': Number(get('CupOnline')),
+            'CupOffline': Number(get('CupOffline')) || 0,
+            'CupOnline': Number(get('CupOnline')) || 0,
             'Gajian': Number(get('Gajian')) || 0,
             'Lainnya': Number(get('Lainnya')) || 0,
           };
@@ -221,9 +223,11 @@ export default function Recap() {
     'Gajian': item['Gajian'],
     'Bensin Viar': item['Bensin Viar'],
     'Lainnya': item['Lainnya'],
+    'CupOnline': item.CupOnline,
+    'CupOffline': item.CupOffline,
   }));
 
-  const renderChart = (dataKey: string[], title: string, fillColors: string[]) => (
+  const renderChart = (dataKey: string[], title: string, fillColors: string[], formatter: (value: number) => string = currencyFormatter) => (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">{title}</CardTitle>
@@ -233,8 +237,8 @@ export default function Recap() {
           <RechartsBarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-            <YAxis tickFormatter={currencyFormatter} fontSize={12} tickLine={false} axisLine={false}/>
-            <Tooltip formatter={currencyFormatter}/>
+            <YAxis tickFormatter={formatter} fontSize={12} tickLine={false} axisLine={false}/>
+            <Tooltip formatter={formatter}/>
             <Legend />
             {dataKey.map((key, index) => (
                  <Bar key={key} dataKey={key} fill={fillColors[index]} radius={[4, 4, 0, 0]} />
@@ -289,6 +293,7 @@ export default function Recap() {
                 {renderChart(['Penjualan Online', 'Penjualan Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
             </div>
             {renderChart(['Belanja Buah', 'Belanja Salad', 'Gajian', 'Bensin Viar', 'Lainnya'], 'Rincian Belanja per Toko', ['#facc15', '#fb923c', '#4ade80', '#34d399', '#a78bfa'])}
+            {renderChart(['CupOnline', 'CupOffline'], 'Perbandingan Penjualan Cup', ['#f97316', '#166534'], numberFormatter)}
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg">Detail Platform Penjualan Online</CardTitle>
@@ -332,3 +337,5 @@ export default function Recap() {
     </div>
   );
 }
+
+    
