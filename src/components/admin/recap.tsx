@@ -94,24 +94,24 @@ export default function Recap() {
           const get = (key: string) => row[headerMap[key.toLowerCase().trim()]];
         
           return {
-            'Store': get('Store') || '',
-            'Hari': get('Hari') || '',
-            'Tanggal': get('Tanggal') || '',
-            'QRIS': Number(get('QRIS')) || 0,
-            'Gojek': Number(get('Gojek')) || 0,
-            'Grab': Number(get('Grab')) || 0,
-            'Shopee': Number(get('Shopee')) || 0,
-            'Online Order': Number(get('Online Order')) || 0,
-            'Offline': Number(get('Offline')) || 0,
-            'Omset Kotor': Number(get('Omset Kotor')) || 0,
-            'Belanja': Number(get('Belanja')) || 0,
-            'Belanja Salad': Number(get('Belanja Salad')) || 0,
-            'Uang Offline': Number(get('Uang Offline')) || 0,
-            'Total Bersih': Number(get('Total Bersih')) || 0,
-            'Sum Uang Offline': Number(get('Sum Uang Offline')) || 0,
-            'Sum Uang Online': Number(get('Sum Uang Online')) || 0,
-            'CupOffline': Number(get('CupOffline')) || 0,
-            'CupOnline': Number(get('CupOnline')) || 0,
+            'Store': get('Store'),
+            'Hari': get('Hari'),
+            'Tanggal': get('Tanggal'),
+            'QRIS': Number(get('QRIS')),
+            'Gojek': Number(get('Gojek')),
+            'Grab': Number(get('Grab')),
+            'Shopee': Number(get('Shopee')),
+            'Online Order': Number(get('Online Order')),
+            'Offline': Number(get('Offline')),
+            'Omset Kotor': Number(get('Omset Kotor')),
+            'Belanja': Number(get('Belanja')),
+            'Belanja Salad': Number(get('Belanja Salad')),
+            'Uang Offline': Number(get('Uang Offline')),
+            'Total Bersih': Number(get('Total Bersih')),
+            'Sum Uang Offline': Number(get('Sum Uang Offline')),
+            'Sum Uang Online': Number(get('Sum Uang Online')),
+            'CupOffline': Number(get('CupOffline')),
+            'CupOnline': Number(get('CupOnline')),
           };
         });
         setData(formattedData);
@@ -313,5 +313,3 @@ export default function Recap() {
     </div>
   );
 }
-
-    
