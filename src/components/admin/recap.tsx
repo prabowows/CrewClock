@@ -18,11 +18,14 @@ type RecapData = {
   'Gojek': number;
   'Grab': number;
   'Shopee': number;
-  'Online Order': number;
+  'Online': number;
   'Offline': number;
   'Omset Kotor': number;
-  'Belanja': number;
+  'Belanja Buah': number;
   'Belanja Salad': number;
+  'Gajian': number;
+  'Bensin Viar': number;
+  'Lainnya': number;
   'Uang Offline': number;
   'Total Bersih': number;
   'Sum Uang Offline': number;
@@ -75,7 +78,7 @@ export default function Recap() {
             headerMap[h.toLowerCase().trim()] = h;
         });
 
-        const requiredColumns = ['Store', 'Hari', 'Tanggal', 'QRIS', 'Gojek', 'Grab', 'Shopee', 'Online Order', 'Offline', 'Omset Kotor', 'Belanja', 'Belanja Salad', 'Uang Offline', 'Total Bersih', 'Sum Uang Offline', 'Sum Uang Online', 'CupOffline', 'CupOnline'];
+        const requiredColumns = ['Store', 'Hari', 'Tanggal', 'QRIS', 'Gojek', 'Grab', 'Shopee', 'Offline', 'Omset Kotor', 'Belanja Buah', 'Belanja Salad', 'Bensin Viar', 'Uang Offline', 'Total Bersih', 'Sum Uang Offline', 'Sum Uang Online', 'CupOffline', 'CupOnline'];
         
         const normalizedHeaders = Object.keys(headerMap);
         const missingColumns = requiredColumns.filter(col => !normalizedHeaders.includes(col.toLowerCase().trim()));
@@ -93,25 +96,33 @@ export default function Recap() {
         const formattedData: RecapData[] = jsonData.map(row => {
           const get = (key: string) => row[headerMap[key.toLowerCase().trim()]];
         
+          const qris = Number(get('QRIS')) || 0;
+          const gojek = Number(get('Gojek')) || 0;
+          const grab = Number(get('Grab')) || 0;
+          const shopee = Number(get('Shopee')) || 0;
+
           return {
             'Store': get('Store'),
             'Hari': get('Hari'),
             'Tanggal': get('Tanggal'),
-            'QRIS': Number(get('QRIS')),
-            'Gojek': Number(get('Gojek')),
-            'Grab': Number(get('Grab')),
-            'Shopee': Number(get('Shopee')),
-            'Online Order': Number(get('Online Order')),
-            'Offline': Number(get('Offline')),
-            'Omset Kotor': Number(get('Omset Kotor')),
-            'Belanja': Number(get('Belanja')),
-            'Belanja Salad': Number(get('Belanja Salad')),
-            'Uang Offline': Number(get('Uang Offline')),
-            'Total Bersih': Number(get('Total Bersih')),
-            'Sum Uang Offline': Number(get('Sum Uang Offline')),
-            'Sum Uang Online': Number(get('Sum Uang Online')),
-            'CupOffline': Number(get('CupOffline')),
-            'CupOnline': Number(get('CupOnline')),
+            'QRIS': qris,
+            'Gojek': gojek,
+            'Grab': grab,
+            'Shopee': shopee,
+            'Online': qris + gojek + grab + shopee,
+            'Offline': Number(get('Offline')) || 0,
+            'Omset Kotor': Number(get('Omset Kotor')) || 0,
+            'Belanja Buah': Number(get('Belanja Buah')) || 0,
+            'Belanja Salad': Number(get('Belanja Salad')) || 0,
+            'Gajian': Number(get('Gajian')) || 0,
+            'Bensin Viar': Number(get('Bensin Viar')) || 0,
+            'Lainnya': Number(get('Lainnya')) || 0,
+            'Uang Offline': Number(get('Uang Offline')) || 0,
+            'Total Bersih': Number(get('Total Bersih')) || 0,
+            'Sum Uang Offline': Number(get('Sum Uang Offline')) || 0,
+            'Sum Uang Online': Number(get('Sum Uang Online')) || 0,
+            'CupOffline': Number(get('CupOffline')) || 0,
+            'CupOnline': Number(get('CupOnline')) || 0,
           };
         });
         setData(formattedData);
@@ -120,6 +131,7 @@ export default function Recap() {
           description: `${file.name} telah berhasil diunggah dan diproses.`,
         });
       } catch (error) {
+        console.error("File processing error:", error);
         toast({
             variant: 'destructive',
             title: 'Gagal Memproses File',
@@ -138,17 +150,21 @@ export default function Recap() {
     let report = `Laporan Penjualan - ${date}\n\n`;
 
     recapData.forEach(item => {
+        const totalBelanja = (item['Belanja Buah'] || 0) + (item['Belanja Salad'] || 0) + (item['Gajian'] || 0) + (item['Bensin Viar'] || 0) + (item['Lainnya'] || 0);
         report += `📍 Store: ${item.Store}\n`;
         report += `--------------------------------\n`;
         report += `Omset Kotor: ${currencyFormatter(item['Omset Kotor'])}\n`;
         report += `Total Bersih: ${currencyFormatter(item['Total Bersih'])}\n`;
         report += `\n`;
-        report += `Penjualan Online: ${currencyFormatter(item['Online Order'])}\n`;
+        report += `Penjualan Online: ${currencyFormatter(item['Online'])}\n`;
         report += `Penjualan Offline: ${currencyFormatter(item['Offline'])}\n`;
         report += `\n`;
-        report += `Total Belanja: ${currencyFormatter(item['Belanja'] + item['Belanja Salad'])}\n`;
-        report += `   - Belanja Buah: ${currencyFormatter(item['Belanja'])}\n`;
+        report += `Total Belanja: ${currencyFormatter(totalBelanja)}\n`;
+        report += `   - Belanja Buah: ${currencyFormatter(item['Belanja Buah'])}\n`;
         report += `   - Belanja Salad: ${currencyFormatter(item['Belanja Salad'])}\n`;
+        report += `   - Gajian: ${currencyFormatter(item['Gajian'])}\n`;
+        report += `   - Bensin Viar: ${currencyFormatter(item['Bensin Viar'])}\n`;
+        report += `   - Lainnya: ${currencyFormatter(item['Lainnya'])}\n`;
         report += `\n`;
         report += `Cup Terjual (Online): ${item['CupOnline']} cups\n`;
         report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n`;
@@ -195,10 +211,10 @@ export default function Recap() {
   const chartData = data.map(item => ({
     name: item.Store,
     'Omset Kotor': item['Omset Kotor'],
-    'Belanja': item['Belanja'],
     'Total Bersih': item['Total Bersih'],
-    'Penjualan Online': item['Online Order'],
+    'Penjualan Online': item['Online'],
     'Penjualan Offline': item.Offline,
+    'Total Belanja': (item['Belanja Buah'] || 0) + (item['Belanja Salad'] || 0) + (item['Gajian'] || 0) + (item['Bensin Viar'] || 0) + (item['Lainnya'] || 0),
     'QRIS': item.QRIS,
     'Gojek': item.Gojek,
     'Grab': item.Grab,
@@ -267,7 +283,7 @@ export default function Recap() {
       {data.length > 0 && (
         <>
             <div className="grid md:grid-cols-2 gap-6">
-                {renderChart(['Omset Kotor', 'Total Bersih'], 'Perbandingan Omset dan Laba Bersih', ['#16a34a', '#3b82f6'])}
+                {renderChart(['Omset Kotor', 'Total Bersih', 'Total Belanja'], 'Perbandingan Omset, Laba, dan Belanja', ['#16a34a', '#3b82f6', '#f59e0b'])}
                 {renderChart(['Penjualan Online', 'Penjualan Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
             </div>
             <Card>
@@ -313,3 +329,5 @@ export default function Recap() {
     </div>
   );
 }
+
+    
