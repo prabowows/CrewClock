@@ -178,7 +178,7 @@ export default function Recap() {
     reader.readAsBinaryString(file);
   };
   
-  const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
+const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
     if (recapData.length === 0) return "";
 
     let report = `Laporan Penjualan - ${format(date, 'd MMMM yyyy')}\n\n`;
@@ -203,9 +203,9 @@ export default function Recap() {
         report += `   - Bensin Viar: ${currencyFormatter(item['Bensin Viar'])}\n`;
         report += `   - Lainnya: ${currencyFormatter(item['Lainnya'])}\n`;
         report += `\n`;
-        report += `Cup Terjual (Online): ${item['CupOnline']} cups\n`;
-        report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n\n`;
-        
+        report += `Cup Terjual (Online): ${numberFormatter(item['CupOnline'])} cups\n`;
+        report += `Cup Terjual (Offline): ${numberFormatter(item['CupOffline'])} cups\n\n`;
+
         const totalKas = item['Sum Uang Offline'] + item['Sum Uang Online'];
         report += `Akumulasi Kas Offline: ${currencyFormatter(item['Sum Uang Offline'])}\n`;
         report += `Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n`;
@@ -221,7 +221,7 @@ export default function Recap() {
     report += `Total Bersih: ${currencyFormatter(totalBersih)}\n`;
 
     return report;
-  }
+}
 
   useEffect(() => {
     if (data.length > 0) {
@@ -371,6 +371,9 @@ export default function Recap() {
                         <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
                         <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Klik untuk mengunggah</span> atau seret dan lepas</p>
                         <p className="text-xs text-muted-foreground">File Excel (.xlsx, .xls)</p>
+                        <a href="https://docs.google.com/spreadsheets/d/1toTUzd3XDUZ76ABRXIn2ISo9JyrqXCIP/edit?usp=sharing&ouid=111818427620287807070&rtpof=true&sd=true" target="_blank" rel="noopener noreferrer" className="mt-2 text-xs text-primary hover:underline">
+                            Unduh file template
+                        </a>
                     </div>
                     <input ref={fileInputRef} id="dropzone-file" type="file" className="hidden" onChange={handleFileUpload} accept=".xlsx, .xls"/>
                 </label>
