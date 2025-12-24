@@ -67,8 +67,11 @@ const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
         report += `\n`;
         report += `Cup Terjual (Online): ${item['CupOnline']} cups\n`;
         report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n\n`;
+        
+        const totalKas = item['Sum Uang Offline'] + item['Sum Uang Online'];
         report += `Akumulasi Kas Offline: ${currencyFormatter(item['Sum Uang Offline'])}\n`;
-        report += `Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n\n\n`;
+        report += `Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n`;
+        report += `Total Akumulasi Kas: ${currencyFormatter(totalKas)}\n\n\n`;
     });
     
     const totalOmsetKotor = recapData.reduce((sum, item) => sum + item['Omset Kotor'], 0);
