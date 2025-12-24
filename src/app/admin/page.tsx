@@ -7,6 +7,7 @@ import BroadcastMessage from "@/components/admin/broadcast-message";
 import Overview from "@/components/admin/overview";
 import Recap from "@/components/admin/recap";
 import DataScience from "@/components/admin/data-science";
+import DataTrend from "@/components/admin/data-trend";
 
 export default function AdminPage() {
   return (
@@ -30,6 +31,7 @@ export default function AdminPage() {
               <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
               <TabsTrigger value="recap">Data Input</TabsTrigger>
               <TabsTrigger value="data-science">Data History</TabsTrigger>
+              <TabsTrigger value="data-trend">Data Trend</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview">
@@ -58,6 +60,9 @@ export default function AdminPage() {
 
             <TabsContent value="data-science">
                 <DataScience />
+            </TabsContent>
+            <TabsContent value="data-trend">
+                <DataTrend />
             </TabsContent>
           </Tabs>
         </div>
