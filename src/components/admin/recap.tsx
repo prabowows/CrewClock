@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Save, Loader } from 'lucide-react';
+import { Upload, Save, Loader, CalendarIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { Textarea } from '../ui/textarea';
@@ -17,8 +17,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Label } from '../ui/label';
 
 
 type RecapData = {
@@ -54,7 +60,9 @@ export default function Recap() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [reportText, setReportText] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
   const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
+  const [reportDate, setReportDate] = useState<Date>(new Date());
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,7 +127,7 @@ export default function Recap() {
           return {
             'Store': String(get('Store')),
             'Hari': String(get('Hari')),
-            'Tanggal': String(get('Tanggal')),
+            'Tanggal': String(get('Tanggal') || ''),
             'QRIS': qris,
             'Gojek': gojek,
             'Grab': grab,
@@ -144,8 +152,8 @@ export default function Recap() {
         if (formattedData.length === 0) {
             toast({
                 variant: 'destructive',
-                title: 'Gagal Memproses Tanggal',
-                description: 'Tidak ada baris data dengan format tanggal yang valid ditemukan di file.',
+                title: 'Gagal Memproses Data',
+                description: 'Tidak ada baris data yang valid ditemukan di file.',
             });
             resetState();
             return;
@@ -169,11 +177,10 @@ export default function Recap() {
     reader.readAsBinaryString(file);
   };
   
-  const generateHardcodedReport = (recapData: RecapData[]) => {
+  const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
     if (recapData.length === 0) return "";
 
-    const date = recapData[0].Tanggal;
-    let report = `Laporan Penjualan - ${date}\n\n`;
+    let report = `Laporan Penjualan - ${format(date, 'd MMMM yyyy')}\n\n`;
 
     recapData.forEach(item => {
         report += `📍 Store: ${item.Store}\n`;
@@ -209,12 +216,12 @@ export default function Recap() {
 
   useEffect(() => {
     if (data.length > 0) {
-      const generatedText = generateHardcodedReport(data);
+      const generatedText = generateHardcodedReport(data, reportDate);
       setReportText(generatedText);
     } else {
       setReportText("");
     }
-  }, [data]);
+  }, [data, reportDate]);
 
   const resetState = () => {
     setData([]);
@@ -226,17 +233,8 @@ export default function Recap() {
   }
 
   const handleSave = async (overwrite = false) => {
-    const reportDate = data[0]?.Tanggal;
-    if (!reportDate) {
-      toast({
-        variant: 'destructive',
-        title: 'Tanggal Laporan Tidak Ditemukan',
-        description: 'Tidak dapat menyimpan laporan tanpa tanggal yang valid.',
-      });
-      return;
-    }
-
-    const reportId = reportDate.replace(/\//g, '-');
+    const formattedDate = format(reportDate, 'yyyy-MM-dd');
+    const reportId = formattedDate;
     const db = getFirestore();
     const reportRef = doc(db, 'dailyReports', reportId);
 
@@ -244,7 +242,7 @@ export default function Recap() {
     try {
       const dataToSave = {
         id: reportId,
-        reportDate: reportDate,
+        reportDate: formattedDate,
         jsonData: JSON.stringify(data),
         createdAt: new Date().toISOString(),
       };
@@ -253,7 +251,7 @@ export default function Recap() {
 
       toast({
         title: `Laporan Berhasil ${overwrite ? 'Diperbarui' : 'Disimpan'}`,
-        description: `Laporan untuk tanggal ${reportDate} telah disimpan ke database.`,
+        description: `Laporan untuk tanggal ${formattedDate} telah disimpan ke database.`,
       });
       resetState();
     } catch (e) {
@@ -269,17 +267,15 @@ export default function Recap() {
     }
   };
 
-  const handleCopyAndSave = async () => {
+  const preSaveCheck = async () => {
     // 1. Copy to clipboard
     navigator.clipboard.writeText(reportText).then(() => {
         toast({ title: 'Laporan disalin ke clipboard!'});
     });
 
     // 2. Check if exists in Firebase and save/prompt
-    const reportDate = data[0]?.Tanggal;
-    if (!reportDate) return;
-
-    const reportId = reportDate.replace(/\//g, '-');
+    const formattedDate = format(reportDate, 'yyyy-MM-dd');
+    const reportId = formattedDate;
     const db = getFirestore();
     const reportRef = doc(db, "dailyReports", reportId);
 
@@ -419,10 +415,57 @@ export default function Recap() {
                         className="min-h-[300px] bg-muted/50 text-sm font-mono"
                         placeholder="Unggah file untuk membuat laporan teks..."
                     />
-                    <Button className="w-full" disabled={!reportText || isSaving} onClick={handleCopyAndSave}>
-                        {isSaving ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Salin & Simpan Laporan
-                    </Button>
+                    <AlertDialog open={saveConfirmOpen} onOpenChange={setSaveConfirmOpen}>
+                        <AlertDialogTrigger asChild>
+                            <Button className="w-full" disabled={!reportText || isSaving}>
+                                {isSaving ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                Salin & Simpan Laporan
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Konfirmasi Penyimpanan</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Anda akan menyimpan laporan untuk tanggal di bawah ini. Harap konfirmasi jika tanggal sudah benar.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="py-4 space-y-2">
+                                <Label htmlFor="report-date">Tanggal Laporan</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            id="report-date"
+                                            variant={"outline"}
+                                            className={cn(
+                                                "w-full justify-start text-left font-normal",
+                                                !reportDate && "text-muted-foreground"
+                                            )}
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {reportDate ? format(reportDate, "PPP") : <span>Pilih tanggal</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                            mode="single"
+                                            selected={reportDate}
+                                            onSelect={(date) => date && setReportDate(date)}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => {
+                                    setSaveConfirmOpen(false);
+                                    preSaveCheck();
+                                }}>
+                                    Ya, Simpan
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </CardContent>
             </Card>
             <AlertDialog open={overwriteConfirmOpen} onOpenChange={setOverwriteConfirmOpen}>
@@ -430,7 +473,7 @@ export default function Recap() {
                   <AlertDialogHeader>
                       <AlertDialogTitle>Timpa Laporan?</AlertDialogTitle>
                       <AlertDialogDescription>
-                          Laporan untuk tanggal <strong className='text-foreground'>{data[0]?.Tanggal}</strong> sudah ada. Apakah Anda ingin menimpanya dengan data yang baru?
+                          Laporan untuk tanggal <strong className='text-foreground'>{format(reportDate, 'd MMMM yyyy')}</strong> sudah ada. Apakah Anda ingin menimpanya dengan data yang baru?
                       </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
