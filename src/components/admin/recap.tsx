@@ -101,21 +101,6 @@ export default function Recap() {
             headerMap[h.toLowerCase().trim()] = h;
         });
 
-        const requiredColumns = ['Store', 'Hari', 'Tanggal', 'QRIS', 'Gojek', 'Grab', 'Shopee', 'Offline', 'Omset Kotor', 'Belanja Buah', 'Belanja Salad', 'Bensin Viar', 'Uang Offline', 'Total Bersih', 'Sum Uang Offline', 'Sum Uang Online', 'CupOffline', 'CupOnline'];
-        
-        const normalizedHeaders = Object.keys(headerMap);
-        const missingColumns = requiredColumns.filter(col => !normalizedHeaders.includes(col.toLowerCase().trim()));
-
-        if (missingColumns.length > 0) {
-            toast({
-                variant: 'destructive',
-                title: 'Format File Salah',
-                description: `Kolom yang hilang: ${missingColumns.join(', ')}`,
-            });
-            resetState();
-            return;
-        }
-        
         const formattedData: RecapData[] = jsonData.map(row => {
           const get = (key: string) => row[headerMap[key.toLowerCase().trim()]];
         
@@ -126,8 +111,8 @@ export default function Recap() {
           const offline = Number(get('Offline')) || 0;
 
           return {
-            'Store': String(get('Store')),
-            'Hari': String(get('Hari')),
+            'Store': String(get('Store') || 'N/A'),
+            'Hari': String(get('Hari') || 'N/A'),
             'Tanggal': String(get('Tanggal') || ''),
             'QRIS': qris,
             'Gojek': gojek,
@@ -150,11 +135,11 @@ export default function Recap() {
           };
         });
         
-        if (formattedData.length === 0) {
+        if (formattedData.length === 0 || !formattedData.some(d => d.Store !== 'N/A')) {
             toast({
                 variant: 'destructive',
                 title: 'Gagal Memproses Data',
-                description: 'Tidak ada baris data yang valid ditemukan di file.',
+                description: 'Tidak ada baris data yang valid ditemukan di file. Pastikan kolom "Store" ada.',
             });
             resetState();
             return;
@@ -393,7 +378,7 @@ const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
         <>
             <div className="grid md:grid-cols-2 gap-6">
                 {renderChart(['Omset Kotor', 'Total Belanja', 'Total Bersih'], 'Perbandingan Omset, Belanja, dan Laba Bersih', ['#16a34a', '#ef4444', '#3b82f6'])}
-                {renderChart(['Online', 'Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
+                {renderChart(['Penjualan Online', 'Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
             </div>
             {renderChart(['Belanja Buah', 'Belanja Salad', 'Gajian', 'Bensin Viar', 'Lainnya'], 'Rincian Belanja per Toko', ['#facc15', '#fb923c', '#4ade80', '#34d399', '#a78bfa'])}
             {renderChart(['CupOnline', 'CupOffline'], 'Perbandingan Penjualan Cup', ['#f97316', '#166534'], numberFormatter)}
@@ -503,4 +488,3 @@ const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
 }
 
     
-
