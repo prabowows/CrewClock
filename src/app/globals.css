@@ -66,3 +66,13 @@
     @apply bg-primary text-primary-foreground;
   }
 }
+
+@layer components {
+  .has-data {
+    @apply relative;
+  }
+  .has-data::after {
+    content: '';
+    @apply absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary;
+  }
+}
