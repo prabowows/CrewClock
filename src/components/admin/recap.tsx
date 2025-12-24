@@ -210,11 +210,15 @@ export default function Recap() {
     
     const totalOmsetKotor = recapData.reduce((sum, item) => sum + item['Omset Kotor'], 0);
     const totalBersih = recapData.reduce((sum, item) => sum + item['Total Bersih'], 0);
+    const totalSumUangOffline = recapData.reduce((sum, item) => sum + item['Sum Uang Offline'], 0);
+    const totalSumUangOnline = recapData.reduce((sum, item) => sum + item['Sum Uang Online'], 0);
 
     report += `Ringkasan Total\n`;
     report += `================================\n`;
     report += `Total Omset Kotor (Semua Toko): ${currencyFormatter(totalOmsetKotor)}\n`;
     report += `Total Bersih (Semua Toko): ${currencyFormatter(totalBersih)}\n`;
+    report += `Akumulasi Kas Offline (Semua Toko): ${currencyFormatter(totalSumUangOffline)}\n`;
+    report += `Akumulasi Kas Online (Semua Toko): ${currencyFormatter(totalSumUangOnline)}\n`;
 
     return report;
   }
@@ -384,7 +388,7 @@ export default function Recap() {
         <>
             <div className="grid md:grid-cols-2 gap-6">
                 {renderChart(['Omset Kotor', 'Total Belanja', 'Total Bersih'], 'Perbandingan Omset, Belanja, dan Laba Bersih', ['#16a34a', '#ef4444', '#3b82f6'])}
-                {renderChart(['Penjualan Online', 'Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
+                {renderChart(['Online', 'Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
             </div>
             {renderChart(['Belanja Buah', 'Belanja Salad', 'Gajian', 'Bensin Viar', 'Lainnya'], 'Rincian Belanja per Toko', ['#facc15', '#fb923c', '#4ade80', '#34d399', '#a78bfa'])}
             {renderChart(['CupOnline', 'CupOffline'], 'Perbandingan Penjualan Cup', ['#f97316', '#166534'], numberFormatter)}
