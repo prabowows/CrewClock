@@ -29,7 +29,7 @@ export default function AdminPage() {
               <TabsTrigger value="crew">Crew</TabsTrigger>
               <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
               <TabsTrigger value="recap">Daily Input</TabsTrigger>
-              <TabsTrigger value="data-science">Data Science</TabsTrigger>
+              <TabsTrigger value="data-science">Data History</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview">

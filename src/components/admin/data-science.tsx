@@ -215,7 +215,7 @@ export default function DataScience() {
       <div className="md:col-span-1">
         <Card>
           <CardHeader>
-            <CardTitle>Data Science</CardTitle>
+            <CardTitle>Data History</CardTitle>
              <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
