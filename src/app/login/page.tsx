@@ -54,26 +54,20 @@ export default function LoginPage() {
   });
 
   useEffect(() => {
-    // This effect will only run if a user is already logged in when the page loads,
-    // or after a successful login is fully processed by the onSubmit function.
+    // This effect redirects an already logged-in admin user.
     if (!isUserLoading && user) {
-        // We still check for admin role here for cases where a non-admin is already logged in
-        // and tries to access the /login page again.
         const adminRoleRef = doc(db, 'roles_admin', user.uid);
         getDoc(adminRoleRef).then(docSnap => {
             if (docSnap.exists()) {
-                toast({
-                    title: 'Login Berhasil!',
-                    description: 'Mengarahkan ke dasbor admin...',
-                });
                 router.push('/admin');
             } else {
-                // If a non-admin user is somehow logged in, log them out.
+                // If a non-admin user is logged in, log them out.
+                // This handles cases where a non-admin might navigate back to /login
                 signOut(auth);
             }
         });
     }
-  }, [user, isUserLoading, router, toast, db, auth]);
+  }, [user, isUserLoading, router, db, auth]);
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
@@ -86,8 +80,13 @@ export default function LoginPage() {
       const docSnap = await getDoc(adminRoleRef);
 
       if (docSnap.exists()) {
-        // User is an admin, the useEffect will handle the redirect.
-        // The toast and redirection are now centralized in the useEffect.
+        // User is an admin, redirect them. The useEffect will also catch this,
+        // but redirecting here provides a faster user experience.
+        toast({
+            title: 'Login Berhasil!',
+            description: 'Mengarahkan ke dasbor admin...',
+        });
+        router.push('/admin');
       } else {
         // Not an admin, sign them out immediately and show an error.
         await signOut(auth);
