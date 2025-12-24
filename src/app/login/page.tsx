@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useFirebaseApp, useUser } from '@/firebase';
+import { useFirebaseApp, useUser, useFirestore } from '@/firebase';
 import Header from '@/components/header';
 import { Loader, Eye, EyeOff } from 'lucide-react';
 
@@ -37,6 +38,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const app = useFirebaseApp();
   const auth = getAuth(app);
+  const db = useFirestore();
   const { user, isUserLoading } = useUser();
 
   const {
@@ -52,20 +54,50 @@ export default function LoginPage() {
   });
 
   useEffect(() => {
+    // This effect will only run if a user is already logged in when the page loads,
+    // or after a successful login is fully processed by the onSubmit function.
     if (!isUserLoading && user) {
-      toast({
-        title: 'Login Berhasil!',
-        description: 'Mengarahkan ke dasbor admin...',
-      });
-      router.push('/admin');
+        // We still check for admin role here for cases where a non-admin is already logged in
+        // and tries to access the /login page again.
+        const adminRoleRef = doc(db, 'roles_admin', user.uid);
+        getDoc(adminRoleRef).then(docSnap => {
+            if (docSnap.exists()) {
+                toast({
+                    title: 'Login Berhasil!',
+                    description: 'Mengarahkan ke dasbor admin...',
+                });
+                router.push('/admin');
+            } else {
+                // If a non-admin user is somehow logged in, log them out.
+                signOut(auth);
+            }
+        });
     }
-  }, [user, isUserLoading, router, toast]);
+  }, [user, isUserLoading, router, toast, db, auth]);
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
-      // The useEffect above will handle the redirect on successful login.
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const loggedInUser = userCredential.user;
+
+      // After successful sign-in, check for admin role
+      const adminRoleRef = doc(db, 'roles_admin', loggedInUser.uid);
+      const docSnap = await getDoc(adminRoleRef);
+
+      if (docSnap.exists()) {
+        // User is an admin, the useEffect will handle the redirect.
+        // The toast and redirection are now centralized in the useEffect.
+      } else {
+        // Not an admin, sign them out immediately and show an error.
+        await signOut(auth);
+        toast({
+          variant: 'destructive',
+          title: 'Login Gagal',
+          description: 'Anda tidak memiliki hak akses admin.',
+        });
+      }
+
     } catch (error: any) {
       let description = 'Terjadi kesalahan saat mencoba masuk. Silakan coba lagi.';
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
