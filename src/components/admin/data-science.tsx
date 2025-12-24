@@ -216,11 +216,12 @@ export default function DataScience() {
         <Card>
           <CardHeader>
             <CardTitle>Data History</CardTitle>
-             <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
+            <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Petunjuk</AlertTitle>
+                <AlertDescription>
                 Pilih tanggal pada kalender untuk melihat laporan penjualan yang sudah tersimpan.
-              </AlertDescription>
+                </AlertDescription>
             </Alert>
           </CardHeader>
           <CardContent className="flex justify-center">
@@ -302,5 +303,7 @@ export default function DataScience() {
     </div>
   );
 }
+
+    
 
     

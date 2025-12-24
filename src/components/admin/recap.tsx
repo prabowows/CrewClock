@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
@@ -378,7 +379,7 @@ export default function Recap() {
       {data.length > 0 && (
         <>
             <div className="grid md:grid-cols-2 gap-6">
-                {renderChart(['Omset Kotor', 'Total Bersih', 'Total Belanja'], 'Perbandingan Omset, Laba Bersih, dan Belanja', ['#16a34a', '#3b82f6', '#ef4444'])}
+                {renderChart(['Omset Kotor', 'Total Belanja', 'Total Bersih'], 'Perbandingan Omset, Belanja, dan Laba Bersih', ['#16a34a', '#ef4444', '#3b82f6'])}
                 {renderChart(['Penjualan Online', 'Penjualan Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
             </div>
             {renderChart(['Belanja Buah', 'Belanja Salad', 'Gajian', 'Bensin Viar', 'Lainnya'], 'Rincian Belanja per Toko', ['#facc15', '#fb923c', '#4ade80', '#34d399', '#a78bfa'])}
@@ -487,3 +488,5 @@ export default function Recap() {
     </div>
   );
 }
+
+    
