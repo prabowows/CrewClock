@@ -1,15 +1,17 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, BarChart, FileSearch, Info } from 'lucide-react';
+import { Loader, BarChart, FileSearch, Info, Copy } from 'lucide-react';
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { Textarea } from '../ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { getFirestore, doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { Button } from '../ui/button';
 
 type RecapData = {
   'Store': string;
@@ -150,6 +152,12 @@ export default function DataScience() {
     }
   };
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(reportText).then(() => {
+      toast({ title: 'Laporan disalin ke clipboard!' });
+    });
+  };
+
   const chartData = data.map(item => ({
     name: item.Store,
     'Omset Kotor': item['Omset Kotor'],
@@ -274,6 +282,10 @@ export default function DataScience() {
                           className="min-h-[300px] bg-muted/50 text-sm font-mono"
                           placeholder="Tidak ada data untuk ditampilkan."
                       />
+                      <Button onClick={handleCopy} disabled={!reportText} className="w-full">
+                          <Copy className="mr-2 h-4 w-4" />
+                          Salin ke Clipboard
+                      </Button>
                   </CardContent>
               </Card>
           </>
@@ -290,3 +302,5 @@ export default function DataScience() {
     </div>
   );
 }
+
+    
