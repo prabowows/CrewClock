@@ -101,14 +101,27 @@ export default function Recap() {
             headerMap[h.toLowerCase().trim()] = h;
         });
 
+        const parseCurrency = (value: any): number => {
+            if (typeof value === 'number') {
+                return value;
+            }
+            if (typeof value === 'string') {
+                // Remove "Rp", whitespace, and thousand separators "."
+                const cleanedValue = value.replace(/Rp\s*|\./g, '').replace(',', '.');
+                const number = parseFloat(cleanedValue);
+                return isNaN(number) ? 0 : number;
+            }
+            return 0;
+        };
+
         const formattedData: RecapData[] = jsonData.map(row => {
           const get = (key: string) => row[headerMap[key.toLowerCase().trim()]];
         
-          const qris = Number(get('QRIS')) || 0;
-          const gojek = Number(get('Gojek')) || 0;
-          const grab = Number(get('Grab')) || 0;
-          const shopee = Number(get('Shopee')) || 0;
-          const offline = Number(get('Offline')) || 0;
+          const qris = parseCurrency(get('QRIS'));
+          const gojek = parseCurrency(get('Gojek'));
+          const grab = parseCurrency(get('Grab'));
+          const shopee = parseCurrency(get('Shopee'));
+          const offline = parseCurrency(get('Offline'));
 
           return {
             'Store': String(get('Store') || 'N/A'),
@@ -120,18 +133,18 @@ export default function Recap() {
             'Shopee': shopee,
             'Online': qris + gojek + grab + shopee,
             'Offline': offline,
-            'Omset Kotor': Number(get('Omset Kotor')) || 0,
-            'Belanja Buah': Number(get('Belanja Buah')) || 0,
-            'Belanja Salad': Number(get('Belanja Salad')) || 0,
-            'Gajian': Number(get('Gajian')) || 0,
-            'Bensin Viar': Number(get('Bensin Viar')) || 0,
-            'Lainnya': Number(get('Lainnya')) || 0,
-            'Uang Offline': Number(get('Uang Offline')) || 0,
-            'Total Bersih': Number(get('Total Bersih')) || 0,
-            'Sum Uang Offline': Number(get('Sum Uang Offline')) || 0,
-            'Sum Uang Online': Number(get('Sum Uang Online')) || 0,
-            'CupOffline': Number(get('CupOffline')) || 0,
-            'CupOnline': Number(get('CupOnline')) || 0,
+            'Omset Kotor': parseCurrency(get('Omset Kotor')),
+            'Belanja Buah': parseCurrency(get('Belanja Buah')),
+            'Belanja Salad': parseCurrency(get('Belanja Salad')),
+            'Gajian': parseCurrency(get('Gajian')),
+            'Bensin Viar': parseCurrency(get('Bensin Viar')),
+            'Lainnya': parseCurrency(get('Lainnya')),
+            'Uang Offline': parseCurrency(get('Uang Offline')),
+            'Total Bersih': parseCurrency(get('Total Bersih')),
+            'Sum Uang Offline': parseCurrency(get('Sum Uang Offline')),
+            'Sum Uang Online': parseCurrency(get('Sum Uang Online')),
+            'CupOffline': parseCurrency(get('CupOffline')),
+            'CupOnline': parseCurrency(get('CupOnline')),
           };
         });
         
