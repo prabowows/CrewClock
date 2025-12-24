@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Loader, BarChart, FileSearch } from 'lucide-react';
+import { Loader, BarChart, FileSearch, Info } from 'lucide-react';
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { Textarea } from '../ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
@@ -207,7 +208,12 @@ export default function DataScience() {
         <Card>
           <CardHeader>
             <CardTitle>Data Science</CardTitle>
-            <CardDescription>Pilih tanggal pada kalender untuk melihat laporan penjualan yang sudah tersimpan.</CardDescription>
+             <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Pilih tanggal pada kalender untuk melihat laporan penjualan yang sudah tersimpan.
+              </AlertDescription>
+            </Alert>
           </CardHeader>
           <CardContent className="flex justify-center">
               <Calendar
