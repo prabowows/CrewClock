@@ -190,6 +190,10 @@ export default function Recap() {
         report += `Total Bersih: ${currencyFormatter(item['Total Bersih'])}\n`;
         report += `\n`;
         report += `Penjualan Online: ${currencyFormatter(item['Online'])}\n`;
+        report += `   - QRIS: ${currencyFormatter(item['QRIS'])}\n`;
+        report += `   - Gojek: ${currencyFormatter(item['Gojek'])}\n`;
+        report += `   - Grab: ${currencyFormatter(item['Grab'])}\n`;
+        report += `   - Shopee: ${currencyFormatter(item['Shopee'])}\n`;
         report += `Penjualan Offline: ${currencyFormatter(item['Offline'])}\n`;
         report += `\n`;
         report += `Total Belanja: ${currencyFormatter(item['Belanja Buah'] + item['Belanja Salad'] + item['Gajian'] + item['Bensin Viar'] + item['Lainnya'])}\n`;
@@ -302,7 +306,7 @@ export default function Recap() {
     'Omset Kotor': item['Omset Kotor'],
     'Total Bersih': item['Total Bersih'],
     'Penjualan Online': item['Online'],
-    'Penjualan Offline': item.Offline,
+    'Offline': item.Offline,
     'Total Belanja': (item['Belanja Buah'] || 0) + (item['Belanja Salad'] || 0) + (item['Gajian'] || 0) + (item['Bensin Viar'] || 0) + (item['Lainnya'] || 0),
     'QRIS': item.QRIS,
     'Gojek': item.Gojek,
@@ -380,7 +384,7 @@ export default function Recap() {
         <>
             <div className="grid md:grid-cols-2 gap-6">
                 {renderChart(['Omset Kotor', 'Total Belanja', 'Total Bersih'], 'Perbandingan Omset, Belanja, dan Laba Bersih', ['#16a34a', '#ef4444', '#3b82f6'])}
-                {renderChart(['Penjualan Online', 'Penjualan Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
+                {renderChart(['Penjualan Online', 'Offline'], 'Perbandingan Penjualan Online vs Offline', ['#ea580c', '#8b5cf6'])}
             </div>
             {renderChart(['Belanja Buah', 'Belanja Salad', 'Gajian', 'Bensin Viar', 'Lainnya'], 'Rincian Belanja per Toko', ['#facc15', '#fb923c', '#4ade80', '#34d399', '#a78bfa'])}
             {renderChart(['CupOnline', 'CupOffline'], 'Perbandingan Penjualan Cup', ['#f97316', '#166534'], numberFormatter)}
