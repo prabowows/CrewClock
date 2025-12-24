@@ -6,6 +6,7 @@ import CrewManagement from "@/components/admin/crew-management";
 import BroadcastMessage from "@/components/admin/broadcast-message";
 import Overview from "@/components/admin/overview";
 import Recap from "@/components/admin/recap";
+import DataScience from "@/components/admin/data-science";
 
 export default function AdminPage() {
   return (
@@ -28,6 +29,7 @@ export default function AdminPage() {
               <TabsTrigger value="crew">Crew</TabsTrigger>
               <TabsTrigger value="broadcast">Broadcast</TabsTrigger>
               <TabsTrigger value="recap">Daily Input</TabsTrigger>
+              <TabsTrigger value="data-science">Data Science</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview">
@@ -52,6 +54,10 @@ export default function AdminPage() {
 
             <TabsContent value="recap">
                 <Recap />
+            </TabsContent>
+
+            <TabsContent value="data-science">
+                <DataScience />
             </TabsContent>
           </Tabs>
         </div>
