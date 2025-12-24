@@ -182,6 +182,8 @@ const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
     if (recapData.length === 0) return "";
 
     let report = `Laporan Penjualan - ${format(date, 'd MMMM yyyy')}\n\n`;
+    let totalOmsetKotorAllStores = 0;
+    let totalBersihAllStores = 0;
 
     recapData.forEach(item => {
         report += `📍 Store: ${item.Store}\n`;
@@ -210,15 +212,15 @@ const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
         report += `Akumulasi Kas Offline: ${currencyFormatter(item['Sum Uang Offline'])}\n`;
         report += `Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n`;
         report += `Total Akumulasi Kas: ${currencyFormatter(totalKas)}\n\n\n`;
+
+        totalOmsetKotorAllStores += item['Omset Kotor'];
+        totalBersihAllStores += item['Total Bersih'];
     });
-    
-    const totalOmsetKotor = recapData.reduce((sum, item) => sum + item['Omset Kotor'], 0);
-    const totalBersih = recapData.reduce((sum, item) => sum + item['Total Bersih'], 0);
 
     report += `Ringkasan Total (Semua Toko)\n`;
     report += `================================\n`;
-    report += `Total Omset Kotor: ${currencyFormatter(totalOmsetKotor)}\n`;
-    report += `Total Bersih: ${currencyFormatter(totalBersih)}\n`;
+    report += `Total Omset Kotor: ${currencyFormatter(totalOmsetKotorAllStores)}\n`;
+    report += `Total Bersih: ${currencyFormatter(totalBersihAllStores)}\n`;
 
     return report;
 }
@@ -371,7 +373,7 @@ const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
                         <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
                         <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Klik untuk mengunggah</span> atau seret dan lepas</p>
                         <p className="text-xs text-muted-foreground">File Excel (.xlsx, .xls)</p>
-                        <a href="https://docs.google.com/spreadsheets/d/1toTUzd3XDUZ76ABRXIn2ISo9JyrqXCIP/edit?usp=sharing&ouid=111818427620287807070&rtpof=true&sd=true" target="_blank" rel="noopener noreferrer" className="mt-2 text-xs text-primary hover:underline">
+                        <a href="https://docs.google.com/spreadsheets/d/1toTUzd3XDUZ76ABRXIn2ISo9JyrqXCIP/edit?usp=sharing&ouid=111818427620287807070&rtpof=true&sd=true" target="_blank" rel="noopener noreferrer" className="mt-2 text-xs text-blue-600 underline">
                             Unduh file template
                         </a>
                     </div>
@@ -501,3 +503,4 @@ const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
 }
 
     
+
