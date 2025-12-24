@@ -66,19 +66,11 @@ const generateHardcodedReport = (recapData: RecapData[], date: Date) => {
         report += `   - Lainnya: ${currencyFormatter(item['Lainnya'])}\n`;
         report += `\n`;
         report += `Cup Terjual (Online): ${item['CupOnline']} cups\n`;
-        report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n`;
-        report += `\n\n`;
+        report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n\n`;
+        report += `Akumulasi Kas Offline: ${currencyFormatter(item['Sum Uang Offline'])}\n`;
+        report += `Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n\n\n`;
     });
     
-    report += `Ringkasan Akumulasi Kas\n`;
-    report += `================================\n`;
-    recapData.forEach(item => {
-        report += `Store ${item.Store}:\n`;
-        report += `  - Akumulasi Kas Offline: ${currencyFormatter(item['Sum Uang Offline'])}\n`;
-        report += `  - Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n`;
-    });
-    report += `\n`;
-
     const totalOmsetKotor = recapData.reduce((sum, item) => sum + item['Omset Kotor'], 0);
     const totalBersih = recapData.reduce((sum, item) => sum + item['Total Bersih'], 0);
 
@@ -175,7 +167,7 @@ export default function DataScience() {
     name: item.Store,
     'Omset Kotor': item['Omset Kotor'],
     'Total Bersih': item['Total Bersih'],
-    'Penjualan Online': item.Online,
+    'Online': item.Online,
     'Offline': item.Offline,
     'Total Belanja': (item['Belanja Buah'] || 0) + (item['Belanja Salad'] || 0) + (item['Gajian'] || 0) + (item['Bensin Viar'] || 0) + (item['Lainnya'] || 0),
     'QRIS': item.QRIS,

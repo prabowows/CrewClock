@@ -204,19 +204,11 @@ export default function Recap() {
         report += `   - Lainnya: ${currencyFormatter(item['Lainnya'])}\n`;
         report += `\n`;
         report += `Cup Terjual (Online): ${item['CupOnline']} cups\n`;
-        report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n`;
-        report += `\n\n`;
+        report += `Cup Terjual (Offline): ${item['CupOffline']} cups\n\n`;
+        report += `Akumulasi Kas Offline: ${currencyFormatter(item['Sum Uang Offline'])}\n`;
+        report += `Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n\n\n`;
     });
     
-    report += `Ringkasan Akumulasi Kas\n`;
-    report += `================================\n`;
-    recapData.forEach(item => {
-        report += `Store ${item.Store}:\n`;
-        report += `  - Akumulasi Kas Offline: ${currencyFormatter(item['Sum Uang Offline'])}\n`;
-        report += `  - Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n`;
-    });
-    report += `\n`;
-
     const totalOmsetKotor = recapData.reduce((sum, item) => sum + item['Omset Kotor'], 0);
     const totalBersih = recapData.reduce((sum, item) => sum + item['Total Bersih'], 0);
 
