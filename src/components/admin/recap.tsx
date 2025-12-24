@@ -208,17 +208,22 @@ export default function Recap() {
         report += `\n\n`;
     });
     
+    report += `Ringkasan Akumulasi Kas\n`;
+    report += `================================\n`;
+    recapData.forEach(item => {
+        report += `Store ${item.Store}:\n`;
+        report += `  - Akumulasi Kas Offline: ${currencyFormatter(item['Sum Uang Offline'])}\n`;
+        report += `  - Akumulasi Kas Online: ${currencyFormatter(item['Sum Uang Online'])}\n`;
+    });
+    report += `\n`;
+
     const totalOmsetKotor = recapData.reduce((sum, item) => sum + item['Omset Kotor'], 0);
     const totalBersih = recapData.reduce((sum, item) => sum + item['Total Bersih'], 0);
-    const totalSumUangOffline = recapData.reduce((sum, item) => sum + item['Sum Uang Offline'], 0);
-    const totalSumUangOnline = recapData.reduce((sum, item) => sum + item['Sum Uang Online'], 0);
 
-    report += `Ringkasan Total\n`;
+    report += `Ringkasan Total (Semua Toko)\n`;
     report += `================================\n`;
-    report += `Total Omset Kotor (Semua Toko): ${currencyFormatter(totalOmsetKotor)}\n`;
-    report += `Total Bersih (Semua Toko): ${currencyFormatter(totalBersih)}\n`;
-    report += `Akumulasi Kas Offline (Semua Toko): ${currencyFormatter(totalSumUangOffline)}\n`;
-    report += `Akumulasi Kas Online (Semua Toko): ${currencyFormatter(totalSumUangOnline)}\n`;
+    report += `Total Omset Kotor: ${currencyFormatter(totalOmsetKotor)}\n`;
+    report += `Total Bersih: ${currencyFormatter(totalBersih)}\n`;
 
     return report;
   }
@@ -309,7 +314,7 @@ export default function Recap() {
     name: item.Store,
     'Omset Kotor': item['Omset Kotor'],
     'Total Bersih': item['Total Bersih'],
-    'Penjualan Online': item['Online'],
+    'Penjualan Online': item.Online,
     'Offline': item.Offline,
     'Total Belanja': (item['Belanja Buah'] || 0) + (item['Belanja Salad'] || 0) + (item['Gajian'] || 0) + (item['Bensin Viar'] || 0) + (item['Lainnya'] || 0),
     'QRIS': item.QRIS,
