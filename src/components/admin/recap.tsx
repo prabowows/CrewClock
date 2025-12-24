@@ -1,11 +1,10 @@
-
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Copy, Check, Save } from 'lucide-react';
+import { Upload, Save, Loader } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { Textarea } from '../ui/textarea';
@@ -18,8 +17,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+
 
 type RecapData = {
   'Store': string;
@@ -53,7 +53,8 @@ export default function Recap() {
   const [data, setData] = useState<RecapData[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [reportText, setReportText] = useState<string>("");
-  const [isCopied, setIsCopied] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,29 +117,40 @@ export default function Recap() {
           const offline = Number(get('Offline')) || 0;
 
           return {
-            'Store': get('Store'),
-            'Hari': get('Hari'),
-            'Tanggal': get('Tanggal'),
+            'Store': String(get('Store')),
+            'Hari': String(get('Hari')),
+            'Tanggal': String(get('Tanggal')),
             'QRIS': qris,
             'Gojek': gojek,
             'Grab': grab,
             'Shopee': shopee,
             'Online': qris + gojek + grab + shopee,
             'Offline': offline,
-            'Omset Kotor': Number(get('Omset Kotor')),
+            'Omset Kotor': Number(get('Omset Kotor')) || 0,
             'Belanja Buah': Number(get('Belanja Buah')) || 0,
             'Belanja Salad': Number(get('Belanja Salad')) || 0,
             'Gajian': Number(get('Gajian')) || 0,
             'Bensin Viar': Number(get('Bensin Viar')) || 0,
             'Lainnya': Number(get('Lainnya')) || 0,
-            'Uang Offline': Number(get('Uang Offline')),
-            'Total Bersih': Number(get('Total Bersih')),
-            'Sum Uang Offline': Number(get('Sum Uang Offline')),
-            'Sum Uang Online': Number(get('Sum Uang Online')),
+            'Uang Offline': Number(get('Uang Offline')) || 0,
+            'Total Bersih': Number(get('Total Bersih')) || 0,
+            'Sum Uang Offline': Number(get('Sum Uang Offline')) || 0,
+            'Sum Uang Online': Number(get('Sum Uang Online')) || 0,
             'CupOffline': Number(get('CupOffline')) || 0,
             'CupOnline': Number(get('CupOnline')) || 0,
           };
         });
+        
+        if (formattedData.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Gagal Memproses Tanggal',
+                description: 'Tidak ada baris data dengan format tanggal yang valid ditemukan di file.',
+            });
+            resetState();
+            return;
+        }
+
         setData(formattedData);
         toast({
           title: 'File Berhasil Diproses',
@@ -204,32 +216,6 @@ export default function Recap() {
     }
   }, [data]);
 
-  const handleCopyAndSave = () => {
-    // 1. Copy to clipboard
-    navigator.clipboard.writeText(reportText).then(() => {
-        setIsCopied(true);
-        toast({ title: 'Laporan disalin ke clipboard!'});
-        setTimeout(() => setIsCopied(false), 2000);
-    });
-
-    // 2. Save to localStorage
-    const reportDate = data[0]?.Tanggal;
-    if (reportDate) {
-        // Here we could convert the date to a standard format like YYYY-MM-DD
-        const reportId = `report-${reportDate}`;
-        const dataToSave = {
-            id: reportId,
-            date: reportDate,
-            data: data, // The processed data array
-        };
-        localStorage.setItem(reportId, JSON.stringify(dataToSave));
-        toast({
-            title: "Laporan Disimpan",
-            description: `Laporan untuk tanggal ${reportDate} telah disimpan di peramban.`
-        })
-    }
-  };
-
   const resetState = () => {
     setData([]);
     setFileName(null);
@@ -238,6 +224,81 @@ export default function Recap() {
         fileInputRef.current.value = '';
     }
   }
+
+  const handleSave = async (overwrite = false) => {
+    const reportDate = data[0]?.Tanggal;
+    if (!reportDate) {
+      toast({
+        variant: 'destructive',
+        title: 'Tanggal Laporan Tidak Ditemukan',
+        description: 'Tidak dapat menyimpan laporan tanpa tanggal yang valid.',
+      });
+      return;
+    }
+
+    const reportId = reportDate.replace(/\//g, '-');
+    const db = getFirestore();
+    const reportRef = doc(db, 'dailyReports', reportId);
+
+    setIsSaving(true);
+    try {
+      const dataToSave = {
+        id: reportId,
+        reportDate: reportDate,
+        jsonData: JSON.stringify(data),
+        createdAt: new Date().toISOString(),
+      };
+
+      await setDoc(reportRef, dataToSave, { merge: !overwrite });
+
+      toast({
+        title: `Laporan Berhasil ${overwrite ? 'Diperbarui' : 'Disimpan'}`,
+        description: `Laporan untuk tanggal ${reportDate} telah disimpan ke database.`,
+      });
+      resetState();
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menyimpan Laporan',
+        description: 'Terjadi kesalahan saat menyimpan ke database.',
+      });
+      console.error('Save error:', e);
+    } finally {
+      setIsSaving(false);
+      setOverwriteConfirmOpen(false);
+    }
+  };
+
+  const handleCopyAndSave = async () => {
+    // 1. Copy to clipboard
+    navigator.clipboard.writeText(reportText).then(() => {
+        toast({ title: 'Laporan disalin ke clipboard!'});
+    });
+
+    // 2. Check if exists in Firebase and save/prompt
+    const reportDate = data[0]?.Tanggal;
+    if (!reportDate) return;
+
+    const reportId = reportDate.replace(/\//g, '-');
+    const db = getFirestore();
+    const reportRef = doc(db, "dailyReports", reportId);
+
+    try {
+        const docSnap = await getDoc(reportRef);
+        if (docSnap.exists()) {
+            setOverwriteConfirmOpen(true);
+        } else {
+            handleSave(false);
+        }
+    } catch(e) {
+        console.error("Error checking document:", e);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not check for existing report in database."
+        });
+    }
+  };
 
   const chartData = data.map(item => ({
     name: item.Store,
@@ -358,36 +419,28 @@ export default function Recap() {
                         className="min-h-[300px] bg-muted/50 text-sm font-mono"
                         placeholder="Unggah file untuk membuat laporan teks..."
                     />
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button className="w-full" disabled={!reportText}>
-                            <Save className="mr-2 h-4 w-4" />
-                            Salin & Simpan Laporan
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                          <AlertDialogHeader>
-                              <AlertDialogTitle>Konfirmasi Tanggal Laporan</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                  Apakah tanggal laporan ini sudah benar? 
-                                  <br />
-                                  <strong className="text-foreground text-lg">{data[0]?.Tanggal}</strong>
-                                  <br />
-                                  Data akan disimpan berdasarkan tanggal ini.
-                              </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                              <AlertDialogCancel>Batal</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleCopyAndSave}>Ya, Simpan Laporan</AlertDialogAction>
-                          </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <Button className="w-full" disabled={!reportText || isSaving} onClick={handleCopyAndSave}>
+                        {isSaving ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Salin & Simpan Laporan
+                    </Button>
                 </CardContent>
             </Card>
+            <AlertDialog open={overwriteConfirmOpen} onOpenChange={setOverwriteConfirmOpen}>
+              <AlertDialogContent>
+                  <AlertDialogHeader>
+                      <AlertDialogTitle>Timpa Laporan?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                          Laporan untuk tanggal <strong className='text-foreground'>{data[0]?.Tanggal}</strong> sudah ada. Apakah Anda ingin menimpanya dengan data yang baru?
+                      </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                      <AlertDialogCancel>Batal</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleSave(true)}>Ya, Timpa Data</AlertDialogAction>
+                  </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
         </>
       )}
     </div>
   );
 }
-
-    
