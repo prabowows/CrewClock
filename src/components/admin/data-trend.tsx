@@ -1,16 +1,20 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, eachDayOfInterval } from 'date-fns';
-import { Loader, LineChart as LineChartIcon } from 'lucide-react';
+import { format, eachDayOfInterval } from 'date-fns';
+import { Loader, LineChart as LineChartIcon, CalendarIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { Store } from '@/lib/types';
+import { DateRange } from 'react-day-picker';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 type RecapData = {
   'Store': string;
@@ -44,7 +48,7 @@ export default function DataTrend() {
   const [stores, setStores] = useState<Store[]>([]);
   const [trendData, setTrendData] = useState<DailyDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [period, setPeriod] = useState('weekly');
+  const [date, setDate] = useState<DateRange | undefined>();
   const [selectedMetric, setSelectedMetric] = useState<keyof typeof METRIC_OPTIONS>('Total Bersih');
   const { toast } = useToast();
   const db = getFirestore();
@@ -64,19 +68,20 @@ export default function DataTrend() {
   }, [db, toast]);
 
   const fetchTrendData = async () => {
+    if (!date?.from || !date?.to) {
+        toast({
+            title: "Pilih Tanggal",
+            description: "Silakan pilih rentang tanggal terlebih dahulu.",
+            variant: "destructive"
+        });
+        return;
+    }
+
     setIsLoading(true);
     setTrendData([]);
 
-    let startDate, endDate;
-    const today = new Date();
-
-    if (period === 'weekly') {
-      startDate = startOfWeek(today, { weekStartsOn: 1 }); // Monday
-      endDate = endOfWeek(today, { weekStartsOn: 1 }); // Sunday
-    } else { // monthly
-      startDate = startOfMonth(today);
-      endDate = endOfMonth(today);
-    }
+    const startDate = date.from;
+    const endDate = date.to;
     
     const intervalDays = eachDayOfInterval({ start: startDate, end: endDate });
 
@@ -134,8 +139,7 @@ export default function DataTrend() {
   };
   
   useEffect(() => {
-    // Automatically fetch data when metric changes, if data already exists
-    if (trendData.length > 0) {
+    if (trendData.length > 0 && date?.from && date?.to) {
       fetchTrendData();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,19 +149,47 @@ export default function DataTrend() {
     <Card>
       <CardHeader>
         <CardTitle>Data Tren</CardTitle>
-        <CardDescription>Menganalisis tren data toko dalam periode mingguan atau bulanan.</CardDescription>
+        <CardDescription>Menganalisis tren data toko dalam rentang tanggal yang dipilih.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-col sm:flex-row gap-4">
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="Pilih Periode" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="weekly">Mingguan</SelectItem>
-              <SelectItem value="monthly">Bulanan</SelectItem>
-            </SelectContent>
-          </Select>
+            <Popover>
+                <PopoverTrigger asChild>
+                <Button
+                    id="date"
+                    variant={"outline"}
+                    className={cn(
+                    "w-full sm:w-[300px] justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                    )}
+                >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? (
+                    date.to ? (
+                        <>
+                        {format(date.from, "LLL dd, y")} -{" "}
+                        {format(date.to, "LLL dd, y")}
+                        </>
+                    ) : (
+                        format(date.from, "LLL dd, y")
+                    )
+                    ) : (
+                    <span>Pilih rentang tanggal</span>
+                    )}
+                </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={date?.from}
+                    selected={date}
+                    onSelect={setDate}
+                    numberOfMonths={2}
+                />
+                </PopoverContent>
+            </Popover>
+
           <Select value={selectedMetric} onValueChange={(val) => setSelectedMetric(val as keyof typeof METRIC_OPTIONS)}>
             <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Pilih Metrik" />
@@ -209,7 +241,7 @@ export default function DataTrend() {
             ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center border-2 border-dashed rounded-lg">
                     <LineChartIcon className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Pilih periode dan metrik, lalu klik "Tampilkan Tren" untuk melihat data.</p>
+                    <p className="text-muted-foreground">Pilih rentang tanggal dan metrik, lalu klik "Tampilkan Tren" untuk melihat data.</p>
                 </div>
             )}
         </div>
@@ -217,5 +249,3 @@ export default function DataTrend() {
     </Card>
   );
 }
-
-    
